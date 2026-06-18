@@ -182,10 +182,10 @@ async function deleteScalar(db, collection, id, user) {
 
 async function listSeries(db) {
   const { results: seriesRows } = await db.prepare('SELECT * FROM sermon_series WHERE organization_id = ? ORDER BY start_date, title').bind(ORG_ID).all();
-  const { results: sermons } = await db.prepare('SELECT * FROM sermons ORDER BY sort_order, sermon_date').all();
+  const { results: sermons } = await db.prepare('SELECT sermons.*, sermon_series.organization_id FROM sermons JOIN sermon_series ON sermon_series.id = sermons.series_id WHERE sermon_series.organization_id = ? ORDER BY sort_order, sermon_date').bind(ORG_ID).all();
   return (seriesRows || []).map(row => ({
     id: row.id, title: row.title, startDate: row.start_date || '', scripture: row.scripture || '', theme: row.theme || row.description || '',
-    sermons: (sermons || []).filter(s => s.series_id === row.id).map(s => ({ id: s.id, date: s.sermon_date || '', title: s.title, passage: s.passage || '', bigIdea: s.big_idea || '' }))
+    sermons: (sermons || []).filter(s => s.series_id === row.id).map(s => ({ id: s.id, seriesId: s.series_id, series_id: s.series_id, seriesTitle: row.title, date: s.sermon_date || '', title: s.title, passage: s.passage || '', scripture: s.passage || '', bigIdea: s.big_idea || '', theme: s.big_idea || '', notes: s.big_idea || '' }))
   }));
 }
 
@@ -196,7 +196,7 @@ async function replaceSeries(db, rows, user) {
     const id = row.id || newId();
     batch.push(db.prepare('INSERT INTO sermon_series (id, organization_id, title, start_date, scripture, theme, description) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, ORG_ID, clean(row.title), row.startDate || null, row.scripture || null, row.theme || null, row.theme || row.scripture || null));
     (row.sermons || []).forEach((sermon, sermonIndex) => batch.push(db.prepare('INSERT INTO sermons (id, series_id, sermon_date, title, passage, big_idea, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(sermon.id || newId(), id, sermon.date || null, clean(sermon.title), sermon.passage || null, sermon.bigIdea || null, sermonIndex)));
+      .bind(sermon.id || newId(), id, sermon.date || null, clean(sermon.title), (sermon.passage || sermon.scripture) || null, (sermon.bigIdea || sermon.theme || sermon.notes) || null, sermonIndex)));
   });
   await db.batch(batch);
   await audit(db, { user, collection: 'series', action: 'replace', metadata: { count: rows.length } });
@@ -209,7 +209,7 @@ async function listServices(db) {
   const { results: songs } = await db.prepare('SELECT * FROM service_songs ORDER BY sort_order').all();
   const { results: slides } = await db.prepare('SELECT * FROM service_slides ORDER BY sort_order').all();
   return (services || []).map(s => ({
-    id: s.id, date: s.service_date, title: s.title || '', preacher: s.preacher || '', scripture: s.scripture || '', theme: s.theme || '', notes: s.notes || '',
+    id: s.id, date: s.service_date, title: s.title || '', preacher: s.preacher || '', scripture: s.scripture || '', theme: s.theme || '', notes: s.notes || '', sermonId: s.sermon_id || '', sermonTitle: s.sermon_title || '', seriesId: s.series_id || '', seriesTitle: s.series_title || '',
     order: (order || []).filter(o => o.service_id === s.id).map(o => ({ id: o.id, label: o.label, note: o.note || '' })),
     songs: (songs || []).filter(song => song.service_id === s.id).map(song => ({ id: song.id, title: song.title, key: song.song_key || '', ccli: song.ccli || '', author: song.author || '', slide: fromBool(song.include_slide) })),
     slides: (slides || []).filter(slide => slide.service_id === s.id).map(slide => ({ id: slide.id, type: slide.slide_type || '', title: slide.title || '', body: slide.body || '' }))
@@ -221,8 +221,8 @@ async function replaceServices(db, rows, user) {
   const batch = [db.prepare('DELETE FROM services WHERE organization_id = ?').bind(ORG_ID)];
   rows.forEach(service => {
     const id = service.id || newId();
-    batch.push(db.prepare('INSERT INTO services (id, organization_id, service_date, title, preacher, scripture, theme, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, ORG_ID, service.date, service.title || null, service.preacher || null, service.scripture || null, service.theme || null, service.notes || null));
+    batch.push(db.prepare('INSERT INTO services (id, organization_id, service_date, title, preacher, scripture, theme, notes, sermon_id, sermon_title, series_id, series_title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, ORG_ID, service.date, service.title || null, service.preacher || null, service.scripture || null, service.theme || null, service.notes || null, service.sermonId || null, service.sermonTitle || null, service.seriesId || null, service.seriesTitle || null));
     (service.order || []).forEach((item, index) => batch.push(db.prepare('INSERT INTO service_order_items (id, service_id, label, note, sort_order) VALUES (?, ?, ?, ?, ?)')
       .bind(item.id || newId(), id, clean(item.label), item.note || null, index)));
     (service.songs || []).forEach((song, index) => batch.push(db.prepare('INSERT INTO service_songs (id, service_id, title, song_key, ccli, author, include_slide, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
