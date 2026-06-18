@@ -121,6 +121,31 @@ Recommended Phase 2 requirements:
 5. Add audit logging for create, update, and delete actions.
 6. Provide a one-time localStorage import flow for authorized administrators.
 
+
+## Phase 2A authentication and role foundation
+
+Phase 2A adds only the authentication and authorization foundation. The existing React UI still reads and writes browser `localStorage`, and no sensitive ministry data is migrated to D1 in this phase.
+
+Cloudflare Access should protect every `/api/*` route before production use. The Pages Functions middleware now expects Cloudflare Access identity headers:
+
+- `CF-Access-Authenticated-User-Email`
+- `CF-Access-Jwt-Assertion`
+
+Configure role membership with Cloudflare Pages environment variables, not committed secrets:
+
+- `ACCESS_ADMIN_EMAILS`: comma-separated emails with Admin access.
+- `ACCESS_PASTOR_LEADER_EMAILS`: comma-separated emails with Pastor/Leader access.
+- `ACCESS_VOLUNTEER_EMAILS`: comma-separated emails with Volunteer/View Only access.
+- Optional `AUTH_ROLE_MAP`: JSON object mapping lowercase email addresses to `admin`, `pastor_leader`, or `volunteer_view_only`.
+
+Role levels are cumulative for the API scaffold:
+
+1. **Admin**: highest access, including organization/settings-level routes.
+2. **Pastor/Leader**: access to sensitive ministry collections such as care, people, attendance, visitors, and pastoral contacts.
+3. **Volunteer/View Only**: read access to non-sensitive planning collections while data access remains deferred.
+
+The existing `/api/collections/:collection` scaffold now authenticates the Cloudflare Access user and checks the required role before returning the intentionally deferred `501` response. D1 reads, writes, import tooling, audit logging, and localStorage replacement remain future phases.
+
 ## Important production note
 
 This prototype should not be used for real prayer requests, visitor details, attendance records, giving data, or pastoral contacts until authentication, D1 persistence, backups, and user permissions are fully implemented.

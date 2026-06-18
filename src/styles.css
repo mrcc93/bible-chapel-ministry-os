@@ -34,7 +34,11 @@ h1,h2,h3{font-family:Fraunces,Georgia,serif;margin:0;line-height:1.12;color:var(
 .sidebar nav button{display:flex;align-items:center;gap:11px;border:0;background:transparent;color:#d6e6f3;padding:11px 12px;border-radius:12px;text-align:left;font-weight:650;transition:.14s ease}
 .sidebar nav button:hover{background:rgba(255,255,255,.08);color:#fff}
 .sidebar nav button.active{background:var(--gold);color:#062f55;box-shadow:0 8px 18px rgba(255,223,44,.22)}
-.sidebar-note{margin-top:auto;color:#b7cce0;font-size:12px;line-height:1.5;padding:14px 8px 0;border-top:1px solid rgba(215,229,240,.18)}
+.auth-placeholder{margin-top:auto;border:1px solid rgba(215,229,240,.22);border-radius:14px;background:rgba(255,255,255,.07);padding:12px;color:#d6e6f3}
+.auth-placeholder span{display:block;color:var(--gold);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:850}
+.auth-placeholder strong{display:block;margin-top:5px;font-size:13px;color:#fff}
+.auth-placeholder p{margin:6px 0 0;color:#b7cce0;font-size:12px;line-height:1.4}
+.sidebar-note{color:#b7cce0;font-size:12px;line-height:1.5;padding:14px 8px 0;border-top:1px solid rgba(215,229,240,.18)}
 .main{padding:34px;max-width:1200px;width:100%;margin:0 auto}
 .page-head{display:flex;justify-content:space-between;gap:20px;margin-bottom:24px;align-items:flex-start}
 .page-head p{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-2);font-weight:800;margin:0 0 8px}

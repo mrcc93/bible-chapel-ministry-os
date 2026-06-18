@@ -1,20 +1,22 @@
-const COLLECTION_TABLES = {
-  settings: 'organizations',
-  rhythm: 'weekly_rhythm_days',
-  tasks: 'tasks',
-  stats: 'attendance_stats',
-  events: 'ministry_events',
-  annualPlan: 'annual_priorities',
-  services: 'services',
-  people: 'people',
-  absences: 'volunteer_absences',
-  visitors: 'visitors',
-  prayers: 'prayer_requests',
-  contacts: 'pastoral_contacts',
-  series: 'sermon_series',
-  bulletin: 'bulletin_announcements',
-  goals: 'goals',
-  roadmap: 'roadmap_items'
+import { ROLES, requireRole } from '../../_shared/auth.js';
+
+const COLLECTIONS = {
+  settings: { table: 'organizations', minimumRole: ROLES.ADMIN },
+  rhythm: { table: 'weekly_rhythm_days', minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
+  tasks: { table: 'tasks', minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
+  stats: { table: 'attendance_stats', minimumRole: ROLES.PASTOR_LEADER },
+  events: { table: 'ministry_events', minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
+  annualPlan: { table: 'annual_priorities', minimumRole: ROLES.PASTOR_LEADER },
+  services: { table: 'services', minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
+  people: { table: 'people', minimumRole: ROLES.PASTOR_LEADER },
+  absences: { table: 'volunteer_absences', minimumRole: ROLES.PASTOR_LEADER },
+  visitors: { table: 'visitors', minimumRole: ROLES.PASTOR_LEADER },
+  prayers: { table: 'prayer_requests', minimumRole: ROLES.PASTOR_LEADER },
+  contacts: { table: 'pastoral_contacts', minimumRole: ROLES.PASTOR_LEADER },
+  series: { table: 'sermon_series', minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
+  bulletin: { table: 'bulletin_announcements', minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
+  goals: { table: 'goals', minimumRole: ROLES.PASTOR_LEADER },
+  roadmap: { table: 'roadmap_items', minimumRole: ROLES.PASTOR_LEADER }
 };
 
 const json = (body, init = {}) => Response.json(body, {
@@ -26,26 +28,34 @@ const json = (body, init = {}) => Response.json(body, {
 });
 
 export async function onRequest(context) {
-  const { request, env, params } = context;
+  const { request, env, params, data } = context;
   const collection = params.collection;
-  const table = COLLECTION_TABLES[collection];
+  const collectionConfig = COLLECTIONS[collection];
 
-  if (!table) {
+  if (!collectionConfig) {
     return json({ error: 'Unknown collection' }, { status: 404 });
   }
+
+  const authUser = data?.authUser;
+  const roleError = requireRole(authUser, collectionConfig.minimumRole);
+  if (roleError) return roleError;
 
   if (!env.DB) {
     return json({ error: 'Cloudflare D1 binding DB is not configured.' }, { status: 500 });
   }
 
-  // Phase 2 auth gate: verify the current user/session here before any D1 read
-  // or write. Sensitive collections must never be exposed anonymously.
   if (request.method === 'GET') {
     return json({
       collection,
-      table,
+      table: collectionConfig.table,
+      minimumRole: collectionConfig.minimumRole,
+      authenticatedAs: {
+        email: authUser.email,
+        role: authUser.role,
+        roleLabel: authUser.roleLabel
+      },
       deferred: true,
-      message: 'D1 schema and route are ready; collection-specific queries will be implemented in Phase 2 after authentication is added.'
+      message: 'Authentication and role checks passed; D1 collection queries remain deferred until the data migration phase.'
     }, { status: 501 });
   }
 
