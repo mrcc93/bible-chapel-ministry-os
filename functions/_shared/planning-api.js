@@ -237,14 +237,14 @@ async function replaceServices(db, rows, user) {
 
 async function listBulletin(db) {
   const { results } = await db.prepare('SELECT * FROM bulletin_announcements WHERE organization_id = ? ORDER BY sort_order, created_at').bind(ORG_ID).all();
-  return { announcements: (results || []).map(row => ({ id: row.id, title: row.title, body: row.body || '' })) };
+  return { announcements: (results || []).map(row => ({ id: row.id, title: row.title, text: row.body || row.title || '', body: row.body || '' })) };
 }
 async function replaceBulletin(db, payload, user) {
   await ensureOrg(db);
   const announcements = payload.announcements || [];
   const batch = [db.prepare('DELETE FROM bulletin_announcements WHERE organization_id = ?').bind(ORG_ID)];
   announcements.forEach((row, index) => batch.push(db.prepare('INSERT INTO bulletin_announcements (id, organization_id, title, body, sort_order) VALUES (?, ?, ?, ?, ?)')
-    .bind(row.id || newId(), ORG_ID, clean(row.title), row.body || null, index)));
+    .bind(row.id || newId(), ORG_ID, clean(row.title || row.text), row.body || row.text || null, index)));
   await db.batch(batch);
   await audit(db, { user, collection: 'bulletin', action: 'replace', metadata: { count: announcements.length } });
   return listBulletin(db);
