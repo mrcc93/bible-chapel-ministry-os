@@ -1,0 +1,34 @@
+/**
+ * Local app collection registry.
+ *
+ * Phase 1 keeps the current localStorage-backed UI intact. This registry is the
+ * bridge for Phase 2, when each collection will be loaded and saved through
+ * authenticated Cloudflare Pages Functions backed by D1.
+ */
+export const COLLECTIONS = Object.freeze({
+  settings: { storageKey: 'bc-planner:settings', d1Table: 'organizations', sensitive: false },
+  rhythm: { storageKey: 'bc-planner:rhythm', d1Table: 'weekly_rhythm_days', sensitive: false },
+  tasks: { storageKey: 'bc-planner:tasks', d1Table: 'tasks', sensitive: false },
+  stats: { storageKey: 'bc-planner:stats', d1Table: 'attendance_stats', sensitive: true },
+  events: { storageKey: 'bc-planner:events', d1Table: 'ministry_events', sensitive: false },
+  annualPlan: { storageKey: 'bc-planner:annualPlan', d1Table: 'annual_priorities', sensitive: false },
+  services: { storageKey: 'bc-planner:services', d1Table: 'services/service_order_items', sensitive: false },
+  people: { storageKey: 'bc-planner:people', d1Table: 'people', sensitive: true },
+  absences: { storageKey: 'bc-planner:absences', d1Table: 'volunteer_absences', sensitive: true },
+  visitors: { storageKey: 'bc-planner:visitors', d1Table: 'visitors', sensitive: true },
+  prayers: { storageKey: 'bc-planner:prayers', d1Table: 'prayer_requests', sensitive: true },
+  contacts: { storageKey: 'bc-planner:contacts', d1Table: 'pastoral_contacts', sensitive: true },
+  series: { storageKey: 'bc-planner:series', d1Table: 'sermon_series', sensitive: false },
+  bulletin: { storageKey: 'bc-planner:bulletin', d1Table: 'bulletin_announcements', sensitive: false },
+  goals: { storageKey: 'bc-planner:goals', d1Table: 'goals', sensitive: false },
+  roadmap: { storageKey: 'bc-planner:roadmap', d1Table: 'roadmap_items', sensitive: false }
+});
+
+export const collectionNames = Object.freeze(Object.keys(COLLECTIONS));
+
+export function assertCollectionName(name) {
+  if (!Object.prototype.hasOwnProperty.call(COLLECTIONS, name)) {
+    throw new Error(`Unknown Bible Chapel collection: ${name}`);
+  }
+  return name;
+}
