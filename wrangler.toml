@@ -1,3 +1,17 @@
 name = "bible-chapel-planner"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-06-17"
+
+# Create the production database with:
+#   npx wrangler d1 create bible-chapel-ministry-os
+# Then replace database_id below with the generated UUID.
+[[d1_databases]]
+binding = "DB"
+database_name = "bible-chapel-ministry-os"
+database_id = "replace-with-cloudflare-d1-database-id"
+migrations_dir = "cloudflare/migrations"
+
+# Non-secret auth defaults. Keep role maps and provider secrets in Cloudflare
+# dashboard variables/secrets rather than committing them here.
+[vars]
+AUTH_DEFAULT_ROLE = "volunteer_viewer"
