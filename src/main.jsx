@@ -136,25 +136,25 @@ const buildServiceFromSermon = (sermon, existing = {}) => {
 
 function App() {
   const [view, setView] = useState('dashboard');
-  const [settings, setSettings] = useLocalStorage('settings', { churchName: 'Bible Chapel', pastor: 'Josh Bailey', theme: 'A New Chapter at Bible Chapel' });
-  const [rhythm, setRhythm] = useLocalStorage('rhythm', starterRhythm);
-  const [tasks, setTasks] = useLocalStorage('tasks', []);
+  const [settings, setSettings, settingsStatus] = useLocalStorage('settings', { churchName: 'Bible Chapel', pastor: 'Josh Bailey', theme: 'A New Chapter at Bible Chapel' });
+  const [rhythm, setRhythm, rhythmStatus] = useLocalStorage('rhythm', starterRhythm);
+  const [tasks, setTasks, tasksStatus] = useLocalStorage('tasks', []);
   const [stats, setStats] = useLocalStorage('stats', []);
-  const [events, setEvents] = useLocalStorage('events', []);
-  const [annualPlan, setAnnualPlan] = useLocalStorage('annualPlan', []);
-  const [services, setServices] = useLocalStorage('services', []);
+  const [events, setEvents, eventsStatus] = useLocalStorage('events', []);
+  const [annualPlan, setAnnualPlan, annualPlanStatus] = useLocalStorage('annualPlan', []);
+  const [services, setServices, servicesStatus] = useLocalStorage('services', []);
   const [people, setPeople] = useLocalStorage('people', []);
   const [absences, setAbsences] = useLocalStorage('absences', []);
   const [visitors, setVisitors] = useLocalStorage('visitors', []);
   const [prayers, setPrayers] = useLocalStorage('prayers', []);
   const [contacts, setContacts] = useLocalStorage('contacts', []);
-  const [series, setSeries] = useLocalStorage('series', []);
-  const [bulletin, setBulletin] = useLocalStorage('bulletin', { announcements: [] });
-  const [goals, setGoals] = useLocalStorage('goals', [
+  const [series, setSeries, seriesStatus] = useLocalStorage('series', []);
+  const [bulletin, setBulletin, bulletinStatus] = useLocalStorage('bulletin', { announcements: [] });
+  const [goals, setGoals, goalsStatus] = useLocalStorage('goals', [
     { id: uid(), label: 'Average weekly attendance', target: 100, current: 12, horizon: '24 months' },
     { id: uid(), label: 'Monthly Chapel Night rhythm', target: 12, current: 0, horizon: 'Year 1' }
   ]);
-  const [plan, setPlan] = useLocalStorage('roadmap', roadmap);
+  const [plan, setPlan, roadmapStatus] = useLocalStorage('roadmap', roadmap);
   const [toast, setToast] = useState('');
 
   const flash = msg => {
@@ -162,7 +162,13 @@ function App() {
     window.setTimeout(() => setToast(''), 2400);
   };
 
-  const ctx = { settings, setSettings, rhythm, setRhythm, tasks, setTasks, stats, setStats, events, setEvents, annualPlan, setAnnualPlan, services, setServices, people, setPeople, absences, setAbsences, visitors, setVisitors, prayers, setPrayers, contacts, setContacts, series, setSeries, bulletin, setBulletin, goals, setGoals, plan, setPlan, flash, setView };
+  const dataStatus = { settings: settingsStatus, rhythm: rhythmStatus, tasks: tasksStatus, events: eventsStatus, annualPlan: annualPlanStatus, services: servicesStatus, series: seriesStatus, bulletin: bulletinStatus, goals: goalsStatus, roadmap: roadmapStatus };
+  const planningStatuses = Object.values(dataStatus).filter(status => status?.apiCollection);
+  const planningApiReady = planningStatuses.some(status => status.apiEnabled);
+  const planningApiError = planningStatuses.find(status => status.error);
+  const planningLoading = planningStatuses.some(status => status.loading);
+
+  const ctx = { settings, setSettings, rhythm, setRhythm, tasks, setTasks, stats, setStats, events, setEvents, annualPlan, setAnnualPlan, services, setServices, people, setPeople, absences, setAbsences, visitors, setVisitors, prayers, setPrayers, contacts, setContacts, series, setSeries, bulletin, setBulletin, goals, setGoals, plan, setPlan, flash, setView, dataStatus };
 
   const nav = [
     ['dashboard', Home, 'Dashboard'], ['rhythm', ClipboardList, 'Weekly Rhythm'], ['planning', CalendarDays, 'Planning'], ['sunday', BookOpen, 'Sunday'], ['care', HeartHandshake, 'Care'], ['stats', BarChart3, 'Statistics'], ['bulletin', Mail, 'Bulletin'], ['settings', Settings, 'Settings']
@@ -172,7 +178,7 @@ function App() {
     <aside className="sidebar">
       <div className="brand"><div className="brand-logo-card"><img className="brand-logo" src={bcLogo} alt="Bible Chapel Church logo"/></div><div className="brand-title"><span>Ministry OS</span><strong>{settings.churchName}</strong></div></div>
       <nav>{nav.map(([id, Icon, label]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><Icon size={18}/>{label}</button>)}</nav>
-      <div className="auth-placeholder"><span>Phase 2B Auth</span><strong>{AUTH_ROLE_PLACEHOLDER}</strong><p>Planning collections use authenticated D1 APIs when available, with local dev fallback.</p></div>
+      <DataStatusCard planningApiReady={planningApiReady} planningApiError={planningApiError} planningLoading={planningLoading}/>
       <p className="sidebar-note">Sensitive care, prayer, visitor, people, attendance, and giving data stays local-only until Phase 2C.</p>
     </aside>
     <main className="main">
@@ -199,6 +205,16 @@ function Textarea(props) { return <textarea className="input textarea" {...props
 function Select(props) { return <select className="input" {...props}/>; }
 function Empty({ title, text }) { return <div className="empty"><h3>{title}</h3><p>{text}</p></div>; }
 function StatusPill({ children, tone = 'neutral' }) { return <span className={`pill ${tone}`}>{children}</span>; }
+function DataStatusCard({ planningApiReady, planningApiError, planningLoading }) {
+  const planningText = planningLoading ? 'Checking D1/API…' : planningApiReady ? 'Planning data: D1/API-backed' : planningApiError ? 'Planning API error' : 'Planning data: local dev/offline';
+  return <div className="auth-placeholder data-status"><span>Data status</span><strong>{planningText}</strong><p>{AUTH_ROLE_PLACEHOLDER}</p>{planningApiError && <p className="status-error">{planningApiError.error}</p>}<p>Sensitive ministry data: local-only until Phase 2C.</p></div>;
+}
+function DataStateNotice({ status, empty, emptyTitle = 'No planning records yet', emptyText = 'Create the first record to begin planning.' }) {
+  if (status?.loading) return <div className="state-banner">Loading D1-backed planning data…</div>;
+  if (status?.error) return <div className="state-banner error"><strong>Planning API unavailable.</strong> {status.localDevFallback ? 'Using local dev/offline data for this browser.' : 'Production data did not load; check Cloudflare Access and D1 before continuing.'} <span>{status.error}</span></div>;
+  if (empty) return <Empty title={emptyTitle} text={emptyText}/>;
+  return null;
+}
 
 function Dashboard({ settings, stats, events, services, visitors, prayers, contacts, tasks, goals, plan, setView }) {
   const latest = sortDateDesc(stats)[0];
@@ -239,12 +255,13 @@ function Metric({ label, value, meta }) { return <div className="metric"><span>{
 function GoalBar({ goal }) { const pct = clamp(Math.round((Number(goal.current) || 0) / (Number(goal.target) || 1) * 100)); return <div className="goal"><div><strong>{goal.label}</strong><span>{goal.current} / {goal.target} · {goal.horizon}</span></div><div className="bar"><i style={{ width: `${pct}%` }}/></div></div>; }
 function InfoRow({ title, meta, children }) { return <div className="info-row"><div><strong>{title}</strong><p>{meta}</p>{children}</div></div>; }
 
-function Rhythm({ rhythm, setRhythm, tasks, setTasks }) {
+function Rhythm({ rhythm, setRhythm, tasks, setTasks, dataStatus }) {
   const [task, setTask] = useState({ title: '', day: 'Tuesday', lane: 'Follow-up', due: todayISO() });
   const addTask = () => { if (!task.title.trim()) return; setTasks(rows => [{ ...task, id: uid(), done: false }, ...rows]); setTask({ title: '', day: task.day, lane: task.lane, due: task.due }); };
   const updateDay = (id, patch) => setRhythm(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
   const grouped = rhythm.map(day => ({ ...day, tasks: tasks.filter(t => t.day === day.day && !t.done) }));
   return <Page eyebrow="Weekly Rhythm" title="Run the ministry on purpose" description="The weekly cadence turns Bible Chapel from reactive to prepared: Sunday ministry, Monday Sabbath, Tuesday follow-up, Wednesday ministry night, Thursday systems, Friday communications.">
+    <DataStateNotice status={dataStatus?.rhythm?.loading ? dataStatus.rhythm : dataStatus?.tasks} empty={!rhythm.length && !tasks.length} emptyTitle="No weekly rhythm loaded" emptyText="Add rhythm days and tasks once D1/API is connected or while working locally."/>
     <Card title="Add a ministry task" subtitle="Assign it to a day so the work has a home.">
       <div className="form-grid four"><Field label="Task"><Input value={task.title} onChange={e => setTask({ ...task, title: e.target.value })} placeholder="Call first-time guest"/></Field><Field label="Day"><Select value={task.day} onChange={e => setTask({ ...task, day: e.target.value })}>{rhythm.map(r => <option key={r.id}>{r.day}</option>)}</Select></Field><Field label="Lane"><Select value={task.lane} onChange={e => setTask({ ...task, lane: e.target.value })}>{['Follow-up','Sunday','Creative','Podcast','Schoolhouse','Care','Admin','Prayer'].map(x => <option key={x}>{x}</option>)}</Select></Field><Field label="Due"><Input type="date" value={task.due} onChange={e => setTask({ ...task, due: e.target.value })}/></Field></div>
       <Button variant="primary" icon={Plus} onClick={addTask}>Add task</Button>
@@ -257,15 +274,15 @@ function Rhythm({ rhythm, setRhythm, tasks, setTasks }) {
 }
 function TaskRow({ task, setTasks, readonly = false }) { return <div className={`task ${task.done ? 'done' : ''}`}><div><strong>{task.title}</strong><p>{task.day} · {task.lane} · due {fmtDate(task.due)}</p></div>{!readonly && <button className="icon-button" onClick={() => setTasks(rows => rows.map(t => t.id === task.id ? { ...t, done: !t.done } : t))}><CheckCircle2 size={18}/></button>}</div>; }
 
-function Planning({ events, setEvents, annualPlan, setAnnualPlan, series, setSeries, goals, setGoals, plan, setPlan }) {
+function Planning({ events, setEvents, annualPlan, setAnnualPlan, series, setSeries, goals, setGoals, plan, setPlan, dataStatus }) {
   const [tab, setTab] = useState('month');
   return <Page eyebrow="Planning" title="Weekly, monthly, yearly" description="Use this view for the bigger ministry picture: monthly ministry pushes, annual planning, sermon series, goals, and the revitalization roadmap.">
     <Tabs active={tab} setActive={setTab} items={[["month","Monthly Plan"],["annual","Annual Plan"],["roadmap","Roadmap"],["series","Sermon Series"],["goals","Goals"]]}/>
-    {tab === 'month' && <MonthlyPlan events={events} setEvents={setEvents}/>}
-    {tab === 'annual' && <AnnualPlan annualPlan={annualPlan} setAnnualPlan={setAnnualPlan}/>}
-    {tab === 'roadmap' && <YearRoadmap plan={plan} setPlan={setPlan}/>}
-    {tab === 'series' && <SeriesPlan series={series} setSeries={setSeries}/>}
-    {tab === 'goals' && <Goals goals={goals} setGoals={setGoals}/>}
+    {tab === 'month' && <><DataStateNotice status={dataStatus?.events} empty={!events.length} emptyTitle="No ministry events yet" emptyText="Add your next event or ministry push."/><MonthlyPlan events={events} setEvents={setEvents}/></>}
+    {tab === 'annual' && <><DataStateNotice status={dataStatus?.annualPlan} empty={!annualPlan.length} emptyTitle="No annual priorities yet" emptyText="Add the big rocks for the year."/><AnnualPlan annualPlan={annualPlan} setAnnualPlan={setAnnualPlan}/></>}
+    {tab === 'roadmap' && <><DataStateNotice status={dataStatus?.roadmap} empty={!plan.length} emptyTitle="No roadmap items yet" emptyText="Create the first roadmap item."/><YearRoadmap plan={plan} setPlan={setPlan}/></>}
+    {tab === 'series' && <><DataStateNotice status={dataStatus?.series} empty={!series.length} emptyTitle="No sermon series yet" emptyText="Create a series, then add dated sermons."/><SeriesPlan series={series} setSeries={setSeries}/></>}
+    {tab === 'goals' && <><DataStateNotice status={dataStatus?.goals} empty={!goals.length} emptyTitle="No goals yet" emptyText="Create the first ministry goal."/><Goals goals={goals} setGoals={setGoals}/></>}
   </Page>;
 }
 function Tabs({ items, active, setActive }) { return <div className="tabs">{items.map(([id, label]) => <button key={id} className={active === id ? 'active' : ''} onClick={() => setActive(id)}>{label}</button>)}</div>; }
@@ -322,7 +339,7 @@ function Goals({ goals, setGoals }) {
   return <Card title="Ministry goals" subtitle="Make growth visible without making numbers the mission."><div className="form-grid four"><Field label="Goal"><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })}/></Field><Field label="Target"><Input type="number" value={form.target} onChange={e => setForm({ ...form, target: e.target.value })}/></Field><Field label="Current"><Input type="number" value={form.current} onChange={e => setForm({ ...form, current: e.target.value })}/></Field><Field label="Horizon"><Input value={form.horizon} onChange={e => setForm({ ...form, horizon: e.target.value })}/></Field></div><Button variant="primary" icon={Plus} onClick={add}>Add goal</Button><div className="goal-grid">{goals.map(g => <div className="editable-goal" key={g.id}><GoalBar goal={g}/><Input type="number" placeholder="Update current" onBlur={e => { if (e.target.value) { setGoals(rows => rows.map(x => x.id === g.id ? { ...x, current: e.target.value } : x)); e.target.value = ''; } }}/><button className="icon-button danger" onClick={() => setGoals(rows => rows.filter(x => x.id !== g.id))}><Trash2 size={16}/></button></div>)}</div></Card>;
 }
 
-function Sunday({ services, setServices, series, settings, flash }) {
+function Sunday({ services, setServices, series, settings, flash, dataStatus }) {
   const [activeId, setActiveId] = useState(services[0]?.id || '');
   const active = services.find(s => s.id === activeId) || services[0];
   const upcomingMessages = useMemo(() => flattenSermons(series).filter(sermon => sermon.date >= todayISO()), [series]);
@@ -343,6 +360,7 @@ function Sunday({ services, setServices, series, settings, flash }) {
   const createService = () => { const svc = { id: uid(), date: nextSundayISO(), title: 'Sunday Service', order: cloneServiceOrder(), songs: [], slides: [] }; setServices(rows => [svc, ...rows]); setActiveId(svc.id); };
   const update = patch => setServices(rows => rows.map(s => s.id === active.id ? { ...s, ...patch } : s));
   return <Page eyebrow="Sunday" title="Service planner" description="Plan the order, songs, sermon notes, slides, and export a simple PowerPoint.">
+    <DataStateNotice status={dataStatus?.services?.loading ? dataStatus.services : dataStatus?.series} empty={!services.length && !upcomingMessages.length} emptyTitle="No services or upcoming messages" emptyText="Create a service or add dated sermons in Planning → Sermon Series."/>
     <div className="toolbar"><Button variant="primary" icon={Plus} onClick={createService}>New service</Button>{services.length > 0 && <Select value={active?.id || ''} onChange={e => setActiveId(e.target.value)}>{services.map(s => <option key={s.id} value={s.id}>{fmtDate(s.date)} — {s.title}</option>)}</Select>}</div>
     <Card title="Upcoming messages" subtitle="Sermons planned in Planning → Sermon Series flow into Sunday here.">{upcomingMessages.length ? <div className="list compact">{upcomingMessages.map(sermon => { const existing = serviceByDate[sermon.date]; return <div className="info-row" key={sermon.id}><div><strong>{sermon.title}</strong><p>{fmtDate(sermon.date)} · {sermon.seriesTitle || 'No series'} · {sermonPassage(sermon) || 'No passage'}</p>{sermonBigIdea(sermon) && <small>{sermonBigIdea(sermon)}</small>}</div><Button icon={BookOpen} onClick={() => planFromSermon(sermon)}>{existing ? 'Open service' : 'Plan service'}</Button></div>; })}</div> : <Empty title="No upcoming messages" text="Add dated sermons in Planning → Sermon Series to plan or open Sunday services from them."/>}</Card>
     {!active ? <Card><Empty title="No service yet" text="Create a service for this Sunday or plan one from an upcoming message."/></Card> : <div className="grid two"><Card title="Service details"><div className="form-grid two"><Field label="Title"><Input value={active.title} onChange={e => update({ title: e.target.value })}/></Field><Field label="Date"><Input type="date" value={active.date} onChange={e => update({ date: e.target.value })}/></Field><Field label="Scripture / passage"><Input value={active.scripture || ''} onChange={e => update({ scripture: e.target.value })}/></Field><Field label="Series"><Input value={active.seriesTitle || ''} onChange={e => update({ seriesTitle: e.target.value })}/></Field></div><Field label="Big idea / theme"><Input value={active.theme || ''} onChange={e => update({ theme: e.target.value })}/></Field>{active.sermonTitle && <p className="muted">Connected message: {active.sermonTitle}</p>}</Card><OrderEditor service={active} update={update}/><SongsEditor service={active} update={update}/><SlidesEditor service={active} update={update} settings={settings} flash={flash}/></div>}
@@ -448,7 +466,7 @@ function Stats({ stats, setStats }) {
   const visitorData = { labels, datasets: [{ label: 'Visitors', data: sorted.map(s => Number(s.visitors || 0)), backgroundColor: '#6d8eae', borderRadius: 6 }] };
   return <Page eyebrow="Statistics" title="The numbers" description="Track attendance, giving, visitors, and notes without letting numbers become the mission."><div className="stat-grid"><Metric label="Giving logged" value={money(totalGiving)} meta={`${stats.length} Sundays`}/><Metric label="Average attendance" value={avg || '—'} meta="All logged weeks"/><Metric label="Visitor total" value={visitorTotal || '—'} meta="All logged weeks"/></div>{sorted.length ? <div className="grid two chart-grid"><Card title="Attendance trend" subtitle="In-person attendance and online reach"><div className="chart-box"><Line data={attendanceData} options={chartOptions}/></div></Card><Card title="Giving trend" subtitle="Offering by Sunday"><div className="chart-box"><Bar data={givingData} options={{ ...chartOptions, plugins: { legend: { display: false } } }}/></div></Card><Card title="Visitor trend" subtitle="First-time or counted visitors" className="span-two"><div className="chart-box short"><Bar data={visitorData} options={{ ...chartOptions, plugins: { legend: { display: false } } }}/></div></Card></div> : <Card><Empty title="No trends yet" text="Log a Sunday and the attendance, giving, and visitor charts will appear here."/></Card>}<Card title="Log a Sunday"><div className="form-grid four">{['date','adults','kids','online','visitors','offering'].map(k => <Field key={k} label={k[0].toUpperCase()+k.slice(1)}><Input type={k === 'date' ? 'date' : 'number'} value={form[k]} onChange={e => setForm({ ...form, [k]: e.target.value })}/></Field>)}</div><Field label="Notes"><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}/></Field><Button variant="primary" icon={Plus} onClick={add}>Save Sunday</Button></Card><Card title="Recent Sundays"><div className="list">{stats.map(s => <InfoRow key={s.id} title={fmtDate(s.date)} meta={`${Number(s.adults||0)+Number(s.kids||0)} in person · ${Number(s.online||0)} online · ${money(s.offering)} · ${s.visitors || 0} visitors · ${s.notes || ''}`}/>)}</div></Card></Page>;
 }
-function Bulletin({ settings, bulletin, setBulletin, flash }) {
+function Bulletin({ settings, bulletin, setBulletin, flash, dataStatus }) {
   const [ann, setAnn] = useState('');
   const set = patch => setBulletin(b => ({ ...b, ...patch }));
   const add = () => { if (!ann.trim()) return; set({ announcements: [...(bulletin.announcements || []), { id: uid(), text: ann.trim() }] }); setAnn(''); };
@@ -486,9 +504,9 @@ function Bulletin({ settings, bulletin, setBulletin, flash }) {
     pdf.save(`${(settings.churchName || 'Bible-Chapel').replace(/[^a-z0-9]+/gi, '-')}-bulletin.pdf`);
     flash('Bulletin PDF exported.');
   };
-  return <Page eyebrow="Communication" title="Bulletin and weekly message" description="One place to prepare the weekly bulletin, announcements, and church communication." actions={<><Button icon={Copy} onClick={copy}>Copy all</Button><Button variant="primary" icon={Download} onClick={exportPdf}>Export PDF</Button></>}><div className="grid two"><Card title="Edit"><Field label="Welcome"><Textarea value={bulletin.welcome || ''} onChange={e => set({ welcome: e.target.value })}/></Field><Field label="Scripture"><Input value={bulletin.scripture || ''} onChange={e => set({ scripture: e.target.value })}/></Field><Field label="Prayer focus"><Input value={bulletin.prayerFocus || ''} onChange={e => set({ prayerFocus: e.target.value })}/></Field><div className="inline-add"><Input value={ann} onChange={e => setAnn(e.target.value)} placeholder="Add announcement"/><Button icon={Plus} onClick={add}>Add</Button></div><Field label="Weekly message"><Textarea value={bulletin.message || ''} onChange={e => set({ message: e.target.value })}/></Field></Card><Card title="Preview"><div className="bulletin-preview"><h2>This Week at {settings.churchName || 'Bible Chapel'}</h2><p>{bulletin.welcome}</p>{bulletin.scripture && <p><strong>Scripture:</strong> {bulletin.scripture}</p>}<ul>{(bulletin.announcements || []).map(a => <li key={a.id}>{a.text}</li>)}</ul>{bulletin.prayerFocus && <p><strong>Prayer focus:</strong> {bulletin.prayerFocus}</p>}<pre>{bulletin.message}</pre></div></Card></div></Page>;
+  return <Page eyebrow="Communication" title="Bulletin and weekly message" description="One place to prepare the weekly bulletin, announcements, and church communication." actions={<><Button icon={Copy} onClick={copy}>Copy all</Button><Button variant="primary" icon={Download} onClick={exportPdf}>Export PDF</Button></>}><DataStateNotice status={dataStatus?.bulletin} empty={!(bulletin.announcements || []).length && !bulletin.welcome && !bulletin.message} emptyTitle="No bulletin content yet" emptyText="Add a welcome, announcement, or weekly message."/><div className="grid two"><Card title="Edit"><Field label="Welcome"><Textarea value={bulletin.welcome || ''} onChange={e => set({ welcome: e.target.value })}/></Field><Field label="Scripture"><Input value={bulletin.scripture || ''} onChange={e => set({ scripture: e.target.value })}/></Field><Field label="Prayer focus"><Input value={bulletin.prayerFocus || ''} onChange={e => set({ prayerFocus: e.target.value })}/></Field><div className="inline-add"><Input value={ann} onChange={e => setAnn(e.target.value)} placeholder="Add announcement"/><Button icon={Plus} onClick={add}>Add</Button></div><Field label="Weekly message"><Textarea value={bulletin.message || ''} onChange={e => set({ message: e.target.value })}/></Field></Card><Card title="Preview"><div className="bulletin-preview"><h2>This Week at {settings.churchName || 'Bible Chapel'}</h2><p>{bulletin.welcome}</p>{bulletin.scripture && <p><strong>Scripture:</strong> {bulletin.scripture}</p>}<ul>{(bulletin.announcements || []).map(a => <li key={a.id}>{a.text}</li>)}</ul>{bulletin.prayerFocus && <p><strong>Prayer focus:</strong> {bulletin.prayerFocus}</p>}<pre>{bulletin.message}</pre></div></Card></div></Page>;
 }
 
-function SettingsPage({ settings, setSettings }) { return <Page eyebrow="Settings" title="Church app setup" description="Rename the app and set the main ministry theme."><Card title="Identity"><div className="form-grid two"><Field label="Church name"><Input value={settings.churchName} onChange={e => setSettings(s => ({ ...s, churchName: e.target.value }))}/></Field><Field label="Pastor / leader"><Input value={settings.pastor} onChange={e => setSettings(s => ({ ...s, pastor: e.target.value }))}/></Field></div><Field label="Current theme"><Input value={settings.theme} onChange={e => setSettings(s => ({ ...s, theme: e.target.value }))}/></Field></Card><Card title="Production warning" subtitle="Important before using real pastoral data"><p className="muted">This version saves to the browser. Before using it for real prayer requests, visitor details, attendance records, or pastoral contacts, add authentication, Cloudflare D1 storage, backups, and user permissions.</p></Card></Page>; }
+function SettingsPage({ settings, setSettings, dataStatus }) { const planningStatuses = Object.values(dataStatus || {}).filter(status => status?.apiCollection); const apiCount = planningStatuses.filter(status => status.apiEnabled).length; const errorCount = planningStatuses.filter(status => status.error).length; return <Page eyebrow="Settings" title="Church app setup" description="Rename the app and set the main ministry theme."><Card title="Identity"><div className="form-grid two"><Field label="Church name"><Input value={settings.churchName} onChange={e => setSettings(s => ({ ...s, churchName: e.target.value }))}/></Field><Field label="Pastor / leader"><Input value={settings.pastor} onChange={e => setSettings(s => ({ ...s, pastor: e.target.value }))}/></Field></div><Field label="Current theme"><Input value={settings.theme} onChange={e => setSettings(s => ({ ...s, theme: e.target.value }))}/></Field></Card><Card title="Data status" subtitle="Phase 2B API readiness"><div className="status-grid"><div><StatusPill tone={apiCount ? 'green' : errorCount ? 'red' : 'gold'}>Planning data</StatusPill><p className="muted">{apiCount ? `${apiCount}/${planningStatuses.length} planning collections are D1/API-backed.` : errorCount ? 'Planning API is not available. Local fallback is for local/offline development only.' : 'Checking planning API availability.'}</p></div><div><StatusPill tone="gold">Sensitive ministry data</StatusPill><p className="muted">Stats/attendance/giving, people, absences, visitors, prayers, and pastoral contacts remain local-only until Phase 2C.</p></div></div></Card><Card title="Production warning" subtitle="Important before using real pastoral data"><p className="muted">This version saves to the browser. Before using it for real prayer requests, visitor details, attendance records, or pastoral contacts, add authentication, Cloudflare D1 storage, backups, and user permissions.</p></Card></Page>; }
 
 createRoot(document.getElementById('root')).render(<App/>);

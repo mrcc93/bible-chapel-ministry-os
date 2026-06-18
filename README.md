@@ -192,3 +192,43 @@ Manual check for the Phase 2B sermon/Sunday data flow:
 8. Confirm the order of service and slides can use the sermon title, passage/scripture, series title, and big idea/theme.
 
 This check preserves the typed/queryable D1 tables for sermon series, sermons, services, order items, songs, and slides. It does not migrate sensitive localStorage-only collections and does not introduce JSON blob storage.
+
+## Phase 2B.5 planning API stabilization checklist
+
+Phase 2B.5 verifies the typed/queryable planning API before Phase 2C. Planning data remains mapped to explicit D1 tables only: `weekly_rhythm_days`, `tasks`, `ministry_events`, `annual_priorities`, `roadmap_items`, `goals`, `sermon_series`, `sermons`, `services`, `service_order_items`, `service_songs`, `service_slides`, and `bulletin_announcements`. Do not add a generic JSON blob table for migrated planning data.
+
+Sensitive ministry collections are intentionally blocked from API migration and must remain localStorage-only until Phase 2C:
+
+- Stats, attendance, and giving
+- People records
+- Absences
+- Visitors
+- Prayers / prayer requests
+- Contacts / pastoral contacts
+
+The browser may use localStorage only for local/offline development fallback. In Cloudflare preview or production, a planning API error should be treated as a deployment/configuration issue, not silently accepted as the production data path.
+
+### Manual QA checklist
+
+Before opening Phase 2C, verify these workflows against a local Pages/D1 preview and again against Cloudflare preview or production:
+
+- [ ] Add a sermon inside a sermon series from **Planning → Sermon Series**.
+- [ ] Confirm that dated sermon appears in **Sunday → Upcoming messages**.
+- [ ] Click **Plan service** from the sermon, then confirm the created service includes the sermon title, date, passage/scripture, series title, big idea/theme, order notes, and starter slides.
+- [ ] Return to the same dated sermon and confirm the action changes to **Open service** rather than creating a duplicate.
+- [ ] Add, edit, and delete a ministry event from **Planning → Monthly Plan**.
+- [ ] Add, edit, and delete a goal from **Planning → Goals**.
+- [ ] Add, edit, and delete a roadmap item/status from **Planning → Roadmap**.
+- [ ] Create a bulletin announcement from **Bulletin**, then refresh and confirm it remains visible through the D1/API path.
+- [ ] Confirm Settings or the sidebar shows planning data as D1/API-backed when the API is reachable.
+- [ ] Confirm sensitive ministry data is labeled local-only until Phase 2C and that `/api/collections/stats`, `/people`, `/absences`, `/visitors`, `/prayers`, and `/contacts` remain blocked.
+
+### Cloudflare deployment checklist
+
+- [ ] Run all D1 migrations in order, including the Phase 2B planning tables and sermon-service link migration.
+- [ ] Configure the Cloudflare Pages D1 binding as `DB` for preview and production.
+- [ ] Configure Cloudflare Access for every `/api/*` route so identity headers are present.
+- [ ] Confirm `DEV_AUTH_BYPASS` is not active whenever `CF_PAGES` is set.
+- [ ] Test `/api/collections/rhythm`, `/tasks`, `/events`, `/annualPlan`, `/roadmap`, `/goals`, `/series`, `/services`, and `/bulletin` in preview/production.
+- [ ] Test that blocked sensitive routes return `403` and do not create D1 rows.
+- [ ] Confirm no secrets, Access tokens, or D1 credentials are committed.
