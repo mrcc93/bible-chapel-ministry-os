@@ -80,6 +80,60 @@ const blankServiceOrder = [
   'Welcome & announcements', 'Opening hymn', 'Scripture reading', 'Prayer', 'Worship set', 'Sermon', 'Response / altar prayer', 'Benediction'
 ].map(label => ({ id: uid(), label, note: '' }));
 
+const cloneServiceOrder = () => blankServiceOrder.map(item => ({ ...item, id: uid() }));
+const sermonPassage = sermon => sermon?.passage || sermon?.scripture || '';
+const sermonBigIdea = sermon => sermon?.bigIdea || sermon?.big_idea || sermon?.theme || sermon?.notes || '';
+const normalizeSermon = (sermon, seriesRow = {}) => ({
+  ...sermon,
+  id: sermon.id,
+  seriesId: sermon.seriesId || sermon.series_id || seriesRow.id || '',
+  series_id: sermon.series_id || sermon.seriesId || seriesRow.id || '',
+  seriesTitle: sermon.seriesTitle || sermon.series_title || seriesRow.title || '',
+  date: sermon.date || sermon.sermon_date || sermon.sermonDate || '',
+  title: sermon.title || '',
+  passage: sermonPassage(sermon),
+  scripture: sermonPassage(sermon),
+  bigIdea: sermonBigIdea(sermon),
+  theme: sermonBigIdea(sermon),
+  notes: sermon.notes || sermonBigIdea(sermon)
+});
+const flattenSermons = seriesRows => sortDateAsc((seriesRows || []).flatMap(seriesRow => {
+  const nested = Array.isArray(seriesRow.sermons) ? seriesRow.sermons : [];
+  if (seriesRow.date && seriesRow.title && !nested.length) return [normalizeSermon(seriesRow, seriesRow)];
+  return nested.map(sermon => normalizeSermon(sermon, seriesRow));
+}).filter(sermon => sermon.id && sermon.date), 'date');
+const buildServiceFromSermon = (sermon, existing = {}) => {
+  const passage = sermonPassage(sermon);
+  const bigIdea = sermonBigIdea(sermon);
+  const sermonNote = [sermon.title, passage].filter(Boolean).join(' · ');
+  const baseOrder = existing.order?.length ? existing.order : cloneServiceOrder();
+  const order = baseOrder.map(item => item.label === 'Scripture reading' && !item.note ? { ...item, note: passage } : item.label === 'Sermon' && !item.note ? { ...item, note: sermonNote } : item);
+  const sermonSlides = [
+    { id: uid(), type: 'Title', title: sermon.title, body: [sermon.seriesTitle, passage].filter(Boolean).join('\n') },
+    passage ? { id: uid(), type: 'Scripture', title: passage, body: '' } : null,
+    bigIdea ? { id: uid(), type: 'Sermon point', title: 'Big idea', body: bigIdea } : null
+  ].filter(Boolean);
+  const existingSlides = existing.slides || [];
+  const slides = existingSlides.length ? [...existingSlides, ...sermonSlides.filter(slide => !existingSlides.some(existingSlide => existingSlide.type === slide.type && existingSlide.title === slide.title))] : sermonSlides;
+  return {
+    ...existing,
+    id: existing.id || uid(),
+    date: sermon.date,
+    title: existing.title || sermon.title || 'Sunday Service',
+    sermonId: sermon.id,
+    sermonTitle: sermon.title,
+    seriesId: sermon.seriesId,
+    seriesTitle: sermon.seriesTitle,
+    scripture: existing.scripture || passage,
+    theme: existing.theme || bigIdea,
+    notes: existing.notes || [sermon.seriesTitle ? `Series: ${sermon.seriesTitle}` : '', bigIdea ? `Big idea: ${bigIdea}` : ''].filter(Boolean).join('\n'),
+    order,
+    songs: existing.songs || [],
+    slides
+  };
+};
+
+
 function App() {
   const [view, setView] = useState('dashboard');
   const [settings, setSettings] = useLocalStorage('settings', { churchName: 'Bible Chapel', pastor: 'Josh Bailey', theme: 'A New Chapter at Bible Chapel' });
@@ -259,8 +313,8 @@ function SeriesPlan({ series, setSeries }) {
 }
 function SeriesCard({ series, setSeries }) {
   const [sermon, setSermon] = useState({ date: series.startDate || nextSundayISO(), title: '', passage: '', bigIdea: '' });
-  const add = () => { if (!sermon.title) return; setSeries(rows => rows.map(s => s.id === series.id ? { ...s, sermons: sortDateAsc([...s.sermons, { ...sermon, id: uid() }]) } : s)); setSermon({ date: sermon.date, title: '', passage: '', bigIdea: '' }); };
-  return <Card title={series.title} subtitle={`${series.scripture || 'No passage'} · starts ${fmtDate(series.startDate)}`}><p className="muted">{series.theme}</p><div className="form-grid two"><Field label="Sermon title"><Input value={sermon.title} onChange={e => setSermon({ ...sermon, title: e.target.value })}/></Field><Field label="Date"><Input type="date" value={sermon.date} onChange={e => setSermon({ ...sermon, date: e.target.value })}/></Field><Field label="Passage"><Input value={sermon.passage} onChange={e => setSermon({ ...sermon, passage: e.target.value })}/></Field></div><Field label="Big idea"><Input value={sermon.bigIdea} onChange={e => setSermon({ ...sermon, bigIdea: e.target.value })}/></Field><Button icon={Plus} onClick={add}>Add sermon</Button><div className="list compact">{series.sermons.map(sm => <InfoRow key={sm.id} title={sm.title} meta={`${fmtDate(sm.date)} · ${sm.passage || 'No passage'} · ${sm.bigIdea || ''}`}/>)}</div></Card>;
+  const add = () => { if (!sermon.title) return; setSeries(rows => rows.map(s => s.id === series.id ? { ...s, sermons: sortDateAsc([...(s.sermons || []), normalizeSermon({ ...sermon, id: uid(), seriesId: s.id }, s)]) } : s)); setSermon({ date: sermon.date, title: '', passage: '', bigIdea: '' }); };
+  return <Card title={series.title} subtitle={`${series.scripture || 'No passage'} · starts ${fmtDate(series.startDate)}`}><p className="muted">{series.theme}</p><div className="form-grid two"><Field label="Sermon title"><Input value={sermon.title} onChange={e => setSermon({ ...sermon, title: e.target.value })}/></Field><Field label="Date"><Input type="date" value={sermon.date} onChange={e => setSermon({ ...sermon, date: e.target.value })}/></Field><Field label="Passage"><Input value={sermon.passage} onChange={e => setSermon({ ...sermon, passage: e.target.value })}/></Field></div><Field label="Big idea"><Input value={sermon.bigIdea} onChange={e => setSermon({ ...sermon, bigIdea: e.target.value })}/></Field><Button icon={Plus} onClick={add}>Add sermon</Button><div className="list compact">{(series.sermons || []).map(sm => <InfoRow key={sm.id} title={sm.title} meta={`${fmtDate(sm.date)} · ${sermonPassage(sm) || 'No passage'} · ${sermonBigIdea(sm) || ''}`}/>)}</div></Card>;
 }
 function Goals({ goals, setGoals }) {
   const [form, setForm] = useState({ label: '', target: '', current: '', horizon: 'Year 1' });
@@ -271,12 +325,27 @@ function Goals({ goals, setGoals }) {
 function Sunday({ services, setServices, series, settings, flash }) {
   const [activeId, setActiveId] = useState(services[0]?.id || '');
   const active = services.find(s => s.id === activeId) || services[0];
-  const sermonsByDate = useMemo(() => Object.fromEntries(series.flatMap(se => se.sermons.map(sm => [sm.date, { ...sm, seriesTitle: se.title }]))), [series]);
-  const createService = () => { const date = nextSundayISO(); const sermon = sermonsByDate[date]; const svc = { id: uid(), date, title: sermon?.title || 'Sunday Service', order: blankServiceOrder, songs: [], slides: [] }; setServices(rows => [svc, ...rows]); setActiveId(svc.id); };
+  const upcomingMessages = useMemo(() => flattenSermons(series).filter(sermon => sermon.date >= todayISO()), [series]);
+  const serviceByDate = useMemo(() => Object.fromEntries((services || []).map(service => [service.date, service])), [services]);
+  const planFromSermon = sermon => {
+    const existing = serviceByDate[sermon.date];
+    if (existing) {
+      const enriched = buildServiceFromSermon(sermon, existing);
+      setServices(rows => rows.map(service => service.id === existing.id ? enriched : service));
+      setActiveId(existing.id);
+      flash?.('Opened the existing service for this sermon date.');
+      return;
+    }
+    const svc = buildServiceFromSermon(sermon);
+    setServices(rows => [svc, ...rows]);
+    setActiveId(svc.id);
+  };
+  const createService = () => { const svc = { id: uid(), date: nextSundayISO(), title: 'Sunday Service', order: cloneServiceOrder(), songs: [], slides: [] }; setServices(rows => [svc, ...rows]); setActiveId(svc.id); };
   const update = patch => setServices(rows => rows.map(s => s.id === active.id ? { ...s, ...patch } : s));
   return <Page eyebrow="Sunday" title="Service planner" description="Plan the order, songs, sermon notes, slides, and export a simple PowerPoint.">
     <div className="toolbar"><Button variant="primary" icon={Plus} onClick={createService}>New service</Button>{services.length > 0 && <Select value={active?.id || ''} onChange={e => setActiveId(e.target.value)}>{services.map(s => <option key={s.id} value={s.id}>{fmtDate(s.date)} — {s.title}</option>)}</Select>}</div>
-    {!active ? <Card><Empty title="No service yet" text="Create a service for this Sunday."/></Card> : <div className="grid two"><Card title="Service details"><div className="form-grid two"><Field label="Title"><Input value={active.title} onChange={e => update({ title: e.target.value })}/></Field><Field label="Date"><Input type="date" value={active.date} onChange={e => update({ date: e.target.value })}/></Field></div></Card><OrderEditor service={active} update={update}/><SongsEditor service={active} update={update}/><SlidesEditor service={active} update={update} settings={settings} flash={flash}/></div>}
+    <Card title="Upcoming messages" subtitle="Sermons planned in Planning → Sermon Series flow into Sunday here.">{upcomingMessages.length ? <div className="list compact">{upcomingMessages.map(sermon => { const existing = serviceByDate[sermon.date]; return <div className="info-row" key={sermon.id}><div><strong>{sermon.title}</strong><p>{fmtDate(sermon.date)} · {sermon.seriesTitle || 'No series'} · {sermonPassage(sermon) || 'No passage'}</p>{sermonBigIdea(sermon) && <small>{sermonBigIdea(sermon)}</small>}</div><Button icon={BookOpen} onClick={() => planFromSermon(sermon)}>{existing ? 'Open service' : 'Plan service'}</Button></div>; })}</div> : <Empty title="No upcoming messages" text="Add dated sermons in Planning → Sermon Series to plan or open Sunday services from them."/>}</Card>
+    {!active ? <Card><Empty title="No service yet" text="Create a service for this Sunday or plan one from an upcoming message."/></Card> : <div className="grid two"><Card title="Service details"><div className="form-grid two"><Field label="Title"><Input value={active.title} onChange={e => update({ title: e.target.value })}/></Field><Field label="Date"><Input type="date" value={active.date} onChange={e => update({ date: e.target.value })}/></Field><Field label="Scripture / passage"><Input value={active.scripture || ''} onChange={e => update({ scripture: e.target.value })}/></Field><Field label="Series"><Input value={active.seriesTitle || ''} onChange={e => update({ seriesTitle: e.target.value })}/></Field></div><Field label="Big idea / theme"><Input value={active.theme || ''} onChange={e => update({ theme: e.target.value })}/></Field>{active.sermonTitle && <p className="muted">Connected message: {active.sermonTitle}</p>}</Card><OrderEditor service={active} update={update}/><SongsEditor service={active} update={update}/><SlidesEditor service={active} update={update} settings={settings} flash={flash}/></div>}
   </Page>;
 }
 function OrderPreview({ service }) { return <div className="order-preview">{service.order?.slice(0, 7).map((o, i) => <p key={o.id}><span>{i + 1}</span>{o.label}{o.note ? <small> — {o.note}</small> : null}</p>)}</div>; }

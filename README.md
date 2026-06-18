@@ -177,3 +177,18 @@ Still localStorage-only and explicitly blocked from API migration until Phase 2C
 The `/api/collections/:collection` route now supports authenticated `GET`, `POST`, and collection replacement `PUT` for the Phase 2B planning collections only. `/api/collections/:collection/:id` supports authenticated `PUT`/`PATCH` and `DELETE` for individual planning rows. Handlers use explicit field mappings to structured tables, create/update requests are validated before writing to D1, and writes attempt to record a basic `audit_log` entry.
 
 For local development only, `DEV_AUTH_BYPASS=1` can provide a fake authenticated user. The bypass is ignored whenever `CF_PAGES` is set, so Cloudflare Pages deployments continue to require real Cloudflare Access headers.
+
+## Regression check: sermon series to Sunday services
+
+Manual check for the Phase 2B sermon/Sunday data flow:
+
+1. Run the app locally with `npm run dev -- --host 127.0.0.1`.
+2. Open **Planning → Sermon Series**.
+3. Create a sermon series with a title, start date, scripture, and theme.
+4. Add a sermon inside that series with a sermon date, title, passage, and big idea.
+5. Open **Sunday** and confirm the dated sermon appears under **Upcoming messages**.
+6. If there is no service on the sermon date, click **Plan service** and confirm the new service is prefilled with the sermon date, title, connected message, passage/scripture, series title, big idea/theme, sermon order notes, and starter sermon slides.
+7. Return to the same upcoming message after the service exists and confirm the action is **Open service**, not a duplicate-creation action.
+8. Confirm the order of service and slides can use the sermon title, passage/scripture, series title, and big idea/theme.
+
+This check preserves the typed/queryable D1 tables for sermon series, sermons, services, order items, songs, and slides. It does not migrate sensitive localStorage-only collections and does not introduce JSON blob storage.
