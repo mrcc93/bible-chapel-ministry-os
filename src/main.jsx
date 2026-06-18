@@ -13,7 +13,7 @@ import {
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import './styles.css';
-import { COLLECTIONS, assertCollectionName } from './data/collections.js';
+import { useCollectionStorage } from './data/apiStorage.js';
 import bcLogo from './assets/bc-logo.webp';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
@@ -45,26 +45,8 @@ const move = (arr, index, dir) => {
   return next;
 };
 
-function useLocalStorage(key, initialValue) {
-  const collectionName = assertCollectionName(key);
-  const storageKey = COLLECTIONS[collectionName].storageKey;
-  const [value, setValue] = useState(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      return raw ? JSON.parse(raw) : initialValue;
-    } catch {
-      return initialValue;
-    }
-  });
-  const setStored = updater => {
-    setValue(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      localStorage.setItem(storageKey, JSON.stringify(next));
-      return next;
-    });
-  };
-  return [value, setStored];
-}
+const useLocalStorage = useCollectionStorage;
+
 
 const starterRhythm = [
   { id: uid(), day: 'Sunday', title: 'Ministry day', focus: 'Serve at Bible Chapel, guest experience, worship/service flow, photos/video, conversations, follow-up notes, and anything connected to the Sunday gathering.', protectedRest: false },
@@ -136,8 +118,8 @@ function App() {
     <aside className="sidebar">
       <div className="brand"><div className="brand-logo-card"><img className="brand-logo" src={bcLogo} alt="Bible Chapel Church logo"/></div><div className="brand-title"><span>Ministry OS</span><strong>{settings.churchName}</strong></div></div>
       <nav>{nav.map(([id, Icon, label]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><Icon size={18}/>{label}</button>)}</nav>
-      <div className="auth-placeholder"><span>Phase 2A Auth</span><strong>{AUTH_ROLE_PLACEHOLDER}</strong><p>LocalStorage remains active until a later D1 data migration.</p></div>
-      <p className="sidebar-note">Saved in this browser. Move to D1 + auth before real pastoral use.</p>
+      <div className="auth-placeholder"><span>Phase 2B Auth</span><strong>{AUTH_ROLE_PLACEHOLDER}</strong><p>Planning collections use authenticated D1 APIs when available, with local dev fallback.</p></div>
+      <p className="sidebar-note">Sensitive care, prayer, visitor, people, attendance, and giving data stays local-only until Phase 2C.</p>
     </aside>
     <main className="main">
       {view === 'dashboard' && <Dashboard {...ctx}/>} {view === 'rhythm' && <Rhythm {...ctx}/>} {view === 'planning' && <Planning {...ctx}/>} {view === 'sunday' && <Sunday {...ctx}/>} {view === 'care' && <Care {...ctx}/>} {view === 'stats' && <Stats {...ctx}/>} {view === 'bulletin' && <Bulletin {...ctx}/>} {view === 'settings' && <SettingsPage {...ctx}/>} 

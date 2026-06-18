@@ -72,8 +72,19 @@ export function getAccessUser(request, env = {}) {
   };
 }
 
+function getLocalBypassUser(env = {}) {
+  if (env.CF_PAGES || !env.DEV_AUTH_BYPASS) return null;
+  return {
+    email: env.DEV_AUTH_EMAIL || 'local-dev@biblechapel.local',
+    role: env.DEV_AUTH_ROLE && ROLE_RANK[env.DEV_AUTH_ROLE] ? env.DEV_AUTH_ROLE : ROLES.ADMIN,
+    roleLabel: ROLE_LABELS[env.DEV_AUTH_ROLE] || ROLE_LABELS[ROLES.ADMIN],
+    accessAuthenticated: false,
+    devAuthBypass: true
+  };
+}
+
 export function requireAuth(context) {
-  const user = getAccessUser(context.request, context.env);
+  const user = getAccessUser(context.request, context.env) || getLocalBypassUser(context.env);
 
   if (!user) {
     return {
