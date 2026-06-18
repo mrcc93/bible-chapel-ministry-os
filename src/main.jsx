@@ -13,6 +13,8 @@ import {
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import './styles.css';
+import { COLLECTIONS, assertCollectionName } from './data/collections.js';
+import { ROLE_LABELS, ROLE_OPTIONS, ROLES, SENSITIVE_ACCESS_AREAS } from './auth/authConfig.js';
 import bcLogo from './assets/bc-logo.webp';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
@@ -43,9 +45,11 @@ const move = (arr, index, dir) => {
 };
 
 function useLocalStorage(key, initialValue) {
+  const collectionName = assertCollectionName(key);
+  const storageKey = COLLECTIONS[collectionName].storageKey;
   const [value, setValue] = useState(() => {
     try {
-      const raw = localStorage.getItem(`bc-planner:${key}`);
+      const raw = localStorage.getItem(storageKey);
       return raw ? JSON.parse(raw) : initialValue;
     } catch {
       return initialValue;
@@ -54,7 +58,7 @@ function useLocalStorage(key, initialValue) {
   const setStored = updater => {
     setValue(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      localStorage.setItem(`bc-planner:${key}`, JSON.stringify(next));
+      localStorage.setItem(storageKey, JSON.stringify(next));
       return next;
     });
   };
@@ -95,6 +99,7 @@ const blankServiceOrder = [
 
 function App() {
   const [view, setView] = useState('dashboard');
+  const [demoUser, setDemoUser] = useState(null);
   const [settings, setSettings] = useLocalStorage('settings', { churchName: 'Bible Chapel', pastor: 'Josh Bailey', theme: 'A New Chapter at Bible Chapel' });
   const [rhythm, setRhythm] = useLocalStorage('rhythm', starterRhythm);
   const [tasks, setTasks] = useLocalStorage('tasks', []);
@@ -121,7 +126,7 @@ function App() {
     window.setTimeout(() => setToast(''), 2400);
   };
 
-  const ctx = { settings, setSettings, rhythm, setRhythm, tasks, setTasks, stats, setStats, events, setEvents, annualPlan, setAnnualPlan, services, setServices, people, setPeople, absences, setAbsences, visitors, setVisitors, prayers, setPrayers, contacts, setContacts, series, setSeries, bulletin, setBulletin, goals, setGoals, plan, setPlan, flash, setView };
+  const ctx = { settings, setSettings, rhythm, setRhythm, tasks, setTasks, stats, setStats, events, setEvents, annualPlan, setAnnualPlan, services, setServices, people, setPeople, absences, setAbsences, visitors, setVisitors, prayers, setPrayers, contacts, setContacts, series, setSeries, bulletin, setBulletin, goals, setGoals, plan, setPlan, flash, setView, demoUser, setDemoUser };
 
   const nav = [
     ['dashboard', Home, 'Dashboard'], ['rhythm', ClipboardList, 'Weekly Rhythm'], ['planning', CalendarDays, 'Planning'], ['sunday', BookOpen, 'Sunday'], ['care', HeartHandshake, 'Care'], ['stats', BarChart3, 'Statistics'], ['bulletin', Mail, 'Bulletin'], ['settings', Settings, 'Settings']
@@ -131,6 +136,7 @@ function App() {
     <aside className="sidebar">
       <div className="brand"><div className="brand-logo-card"><img className="brand-logo" src={bcLogo} alt="Bible Chapel Church logo"/></div><div className="brand-title"><span>Ministry OS</span><strong>{settings.churchName}</strong></div></div>
       <nav>{nav.map(([id, Icon, label]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><Icon size={18}/>{label}</button>)}</nav>
+      <AuthPanel user={demoUser} setUser={setDemoUser}/>
       <p className="sidebar-note">Saved in this browser. Move to D1 + auth before real pastoral use.</p>
     </aside>
     <main className="main">
@@ -139,6 +145,25 @@ function App() {
     <nav className="mobile-nav">{nav.slice(0, 5).map(([id, Icon, label]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><Icon size={19}/><span>{label}</span></button>)}</nav>
     {toast && <div className="toast">{toast}</div>}
   </div>;
+}
+
+
+function AuthPanel({ user, setUser }) {
+  const [draftRole, setDraftRole] = useState(ROLES.PASTOR_LEADER);
+  const login = () => setUser({ name: 'Bible Chapel Demo User', email: 'demo@biblechapel.local', role: draftRole });
+  const logout = () => setUser(null);
+  return <section className="auth-panel" aria-label="Authentication status">
+    <div className="auth-panel-head"><UserMinus size={15}/><strong>Auth foundation</strong></div>
+    {user ? <>
+      <p className="auth-user">{user.name}<span>{user.email}</span></p>
+      <StatusPill tone={user.role === ROLES.ADMIN ? 'gold' : 'green'}>{ROLE_LABELS[user.role]}</StatusPill>
+      <button className="auth-link" onClick={logout}>Log out demo session</button>
+    </> : <>
+      <p>This placeholder does not store secrets. Cloudflare Access will provide the real session.</p>
+      <select value={draftRole} onChange={e => setDraftRole(e.target.value)}>{ROLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+      <button className="auth-link primary" onClick={login}>Start demo session</button>
+    </>}
+  </section>;
 }
 
 function Page({ eyebrow, title, description, children, actions }) {
@@ -432,6 +457,6 @@ function Bulletin({ settings, bulletin, setBulletin, flash }) {
   return <Page eyebrow="Communication" title="Bulletin and weekly message" description="One place to prepare the weekly bulletin, announcements, and church communication." actions={<><Button icon={Copy} onClick={copy}>Copy all</Button><Button variant="primary" icon={Download} onClick={exportPdf}>Export PDF</Button></>}><div className="grid two"><Card title="Edit"><Field label="Welcome"><Textarea value={bulletin.welcome || ''} onChange={e => set({ welcome: e.target.value })}/></Field><Field label="Scripture"><Input value={bulletin.scripture || ''} onChange={e => set({ scripture: e.target.value })}/></Field><Field label="Prayer focus"><Input value={bulletin.prayerFocus || ''} onChange={e => set({ prayerFocus: e.target.value })}/></Field><div className="inline-add"><Input value={ann} onChange={e => setAnn(e.target.value)} placeholder="Add announcement"/><Button icon={Plus} onClick={add}>Add</Button></div><Field label="Weekly message"><Textarea value={bulletin.message || ''} onChange={e => set({ message: e.target.value })}/></Field></Card><Card title="Preview"><div className="bulletin-preview"><h2>This Week at {settings.churchName || 'Bible Chapel'}</h2><p>{bulletin.welcome}</p>{bulletin.scripture && <p><strong>Scripture:</strong> {bulletin.scripture}</p>}<ul>{(bulletin.announcements || []).map(a => <li key={a.id}>{a.text}</li>)}</ul>{bulletin.prayerFocus && <p><strong>Prayer focus:</strong> {bulletin.prayerFocus}</p>}<pre>{bulletin.message}</pre></div></Card></div></Page>;
 }
 
-function SettingsPage({ settings, setSettings }) { return <Page eyebrow="Settings" title="Church app setup" description="Rename the app and set the main ministry theme."><Card title="Identity"><div className="form-grid two"><Field label="Church name"><Input value={settings.churchName} onChange={e => setSettings(s => ({ ...s, churchName: e.target.value }))}/></Field><Field label="Pastor / leader"><Input value={settings.pastor} onChange={e => setSettings(s => ({ ...s, pastor: e.target.value }))}/></Field></div><Field label="Current theme"><Input value={settings.theme} onChange={e => setSettings(s => ({ ...s, theme: e.target.value }))}/></Field></Card><Card title="Production warning" subtitle="Important before using real pastoral data"><p className="muted">This version saves to the browser. Before using it for real prayer requests, visitor details, attendance records, or pastoral contacts, add authentication, Cloudflare D1 storage, backups, and user permissions.</p></Card></Page>; }
+function SettingsPage({ settings, setSettings, demoUser }) { return <Page eyebrow="Settings" title="Church app setup" description="Rename the app and set the main ministry theme."><Card title="Identity"><div className="form-grid two"><Field label="Church name"><Input value={settings.churchName} onChange={e => setSettings(s => ({ ...s, churchName: e.target.value }))}/></Field><Field label="Pastor / leader"><Input value={settings.pastor} onChange={e => setSettings(s => ({ ...s, pastor: e.target.value }))}/></Field></div><Field label="Current theme"><Input value={settings.theme} onChange={e => setSettings(s => ({ ...s, theme: e.target.value }))}/></Field></Card><Card title="Authentication foundation" subtitle="Phase 2A placeholder until Cloudflare Access is configured"><div className="auth-summary"><p><strong>Current demo session:</strong> {demoUser ? `${demoUser.email} · ${ROLE_LABELS[demoUser.role]}` : 'Not signed in'}</p><p className="muted">The sidebar login shell is only a non-secret UI placeholder. Future API routes use Cloudflare Access headers and role rules before touching D1.</p><div className="sensitive-grid">{SENSITIVE_ACCESS_AREAS.map(area => <div key={area.label}><strong>{area.label}</strong><span>{area.roles.map(role => ROLE_LABELS[role]).join(' or ')}</span></div>)}</div></div></Card><Card title="Production warning" subtitle="Important before using real pastoral data"><p className="muted">This version saves to the browser. Before using it for real prayer requests, visitor details, attendance records, giving records, or pastoral contacts, finish Cloudflare Access authentication, D1 storage, backups, role permissions, and audit logging.</p></Card></Page>; }
 
 createRoot(document.getElementById('root')).render(<App/>);
