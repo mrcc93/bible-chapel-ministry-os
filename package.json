@@ -19,5 +19,8 @@
     "pptxgenjs": "latest",
     "jspdf": "latest"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "engines": {
+    "node": "20.x"
+  }
 }
