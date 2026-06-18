@@ -13,6 +13,7 @@ import {
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import './styles.css';
+import { COLLECTIONS, assertCollectionName } from './data/collections.js';
 import bcLogo from './assets/bc-logo.webp';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
@@ -43,9 +44,11 @@ const move = (arr, index, dir) => {
 };
 
 function useLocalStorage(key, initialValue) {
+  const collectionName = assertCollectionName(key);
+  const storageKey = COLLECTIONS[collectionName].storageKey;
   const [value, setValue] = useState(() => {
     try {
-      const raw = localStorage.getItem(`bc-planner:${key}`);
+      const raw = localStorage.getItem(storageKey);
       return raw ? JSON.parse(raw) : initialValue;
     } catch {
       return initialValue;
@@ -54,7 +57,7 @@ function useLocalStorage(key, initialValue) {
   const setStored = updater => {
     setValue(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      localStorage.setItem(`bc-planner:${key}`, JSON.stringify(next));
+      localStorage.setItem(storageKey, JSON.stringify(next));
       return next;
     });
   };
