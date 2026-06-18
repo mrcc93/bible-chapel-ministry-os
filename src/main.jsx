@@ -35,6 +35,8 @@ const money = n => `$${(Number(n) || 0).toLocaleString(undefined, { maximumFract
 const clamp = n => Math.max(0, Math.min(100, n));
 const sortDateAsc = (rows, key = 'date') => [...rows].sort((a, b) => String(a[key] || '').localeCompare(String(b[key] || '')));
 const sortDateDesc = (rows, key = 'date') => sortDateAsc(rows, key).reverse();
+const AUTH_ROLE_PLACEHOLDER = 'Cloudflare Access role: pending sign-in';
+
 const move = (arr, index, dir) => {
   const next = [...arr];
   const to = index + dir;
@@ -134,6 +136,7 @@ function App() {
     <aside className="sidebar">
       <div className="brand"><div className="brand-logo-card"><img className="brand-logo" src={bcLogo} alt="Bible Chapel Church logo"/></div><div className="brand-title"><span>Ministry OS</span><strong>{settings.churchName}</strong></div></div>
       <nav>{nav.map(([id, Icon, label]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><Icon size={18}/>{label}</button>)}</nav>
+      <div className="auth-placeholder"><span>Phase 2A Auth</span><strong>{AUTH_ROLE_PLACEHOLDER}</strong><p>LocalStorage remains active until a later D1 data migration.</p></div>
       <p className="sidebar-note">Saved in this browser. Move to D1 + auth before real pastoral use.</p>
     </aside>
     <main className="main">
