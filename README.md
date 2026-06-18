@@ -232,3 +232,120 @@ Before opening Phase 2C, verify these workflows against a local Pages/D1 preview
 - [ ] Test `/api/collections/rhythm`, `/tasks`, `/events`, `/annualPlan`, `/roadmap`, `/goals`, `/series`, `/services`, and `/bulletin` in preview/production.
 - [ ] Test that blocked sensitive routes return `403` and do not create D1 rows.
 - [ ] Confirm no secrets, Access tokens, or D1 credentials are committed.
+
+## Phase 2D Cloudflare deployment readiness
+
+Phase 2D prepares the app for a real Cloudflare Pages + D1 + Access deployment test while preserving the Phase 2B typed planning API. It does **not** migrate sensitive ministry collections and does **not** add JSON blob storage.
+
+### API route readiness
+
+Cloudflare Pages Functions are deployed from the `functions/` directory:
+
+- `functions/_middleware.js` protects every `/api/*` route with Cloudflare Access, or with `DEV_AUTH_BYPASS` only during local development when `CF_PAGES` is not set.
+- `functions/api/status.js` exposes `GET /api/status` for safe deployment verification.
+- `functions/api/collections/[collection].js` supports authenticated `GET`, `POST`, and replacement `PUT` for Phase 2B planning collections only.
+- `functions/api/collections/[collection]/[id].js` supports authenticated `PUT`/`PATCH` and `DELETE` for individual Phase 2B planning rows only.
+- `functions/_shared/planning-api.js` keeps the planning API mapped to typed/queryable D1 tables and explicitly blocks sensitive collections from API migration.
+
+The status route intentionally returns only deployment metadata: whether auth and role were detected, whether the `DB` D1 binding exists, whether required planning tables are present, whether the Phase 2B planning API is enabled, and which sensitive collection names remain blocked. It does not return ministry records, Access JWTs, D1 credentials, or other sensitive data.
+
+### Sensitive collections that must remain localStorage-only
+
+Do not migrate these collections until a later phase with explicit approval:
+
+- Stats, attendance, and giving (`stats`)
+- People (`people`)
+- Absences (`absences`)
+- Visitors (`visitors`)
+- Prayers / prayer requests (`prayers`)
+- Contacts / pastoral contacts (`contacts`)
+
+`/api/collections/stats`, `/api/collections/people`, `/api/collections/absences`, `/api/collections/visitors`, `/api/collections/prayers`, and `/api/collections/contacts` must continue returning `403` with no sensitive data.
+
+### Cloudflare Pages deployment checklist
+
+1. **Create or connect the Pages project**
+   - In Cloudflare, create a Pages project connected to this repository.
+   - Use the branch you want to test, normally `main` for production and a PR/preview branch for preview.
+2. **Configure build settings**
+   - Framework preset: `Vite`
+   - Build command: `npm run build`
+   - Build output directory: `dist`
+   - The checked-in `wrangler.toml` also declares `pages_build_output_dir = "dist"`.
+3. **Create or connect D1**
+   - Create the database if needed:
+     ```bash
+     npx wrangler d1 create bible-chapel-ministry-os
+     ```
+   - Copy the generated UUID into the `database_id` placeholder in `wrangler.toml`, or configure the binding in the Cloudflare dashboard for Pages preview/production.
+   - Keep the binding name exactly `DB`.
+4. **Apply D1 migrations**
+   - Apply local migrations for local Pages testing:
+     ```bash
+     npx wrangler d1 migrations apply bible-chapel-ministry-os --local
+     ```
+   - Apply remote migrations for the Cloudflare D1 database:
+     ```bash
+     npx wrangler d1 migrations apply bible-chapel-ministry-os --remote
+     ```
+   - Migrations must include the Phase 2B planning tables and the service-sermon link migration.
+5. **Configure the `DB` binding**
+   - In Pages project settings, add a D1 database binding named `DB` for both preview and production.
+   - The binding must point to the intended D1 database for that environment.
+6. **Configure Cloudflare Access**
+   - Protect `/api/*` so Cloudflare injects verified Access headers.
+   - Set role environment variables in Cloudflare, not in git:
+     - `ACCESS_ADMIN_EMAILS`
+     - `ACCESS_PASTOR_LEADER_EMAILS`
+     - `ACCESS_VOLUNTEER_EMAILS`
+     - Optional `AUTH_ROLE_MAP`
+   - Do not commit Access tokens, JWTs, service tokens, database credentials, or email allowlists that should remain private.
+7. **Verify local bypass is disabled on Pages**
+   - `DEV_AUTH_BYPASS=1` is only for local development.
+   - The auth helper ignores `DEV_AUTH_BYPASS` whenever `CF_PAGES` is set, so deployed Pages environments must use real Cloudflare Access headers.
+8. **Test `/api/status`**
+   - Visit `/api/status` after signing in through Access.
+   - Confirm `auth.detected` is `true`, `auth.roleDetected` is `true`, `d1.bindingAvailable` is `true`, `planningApi.enabled` is `true`, and `sensitiveCollections.blockedFromApiMigration` is `true`.
+   - If `d1.migrationsApplied` is `false`, apply migrations before testing the planning workflows.
+9. **Test planning collections**
+   - Verify `/api/collections/rhythm`, `/tasks`, `/events`, `/annualPlan`, `/roadmap`, `/goals`, `/series`, `/services`, and `/bulletin` respond after Access sign-in.
+   - Verify `/api/collections/stats`, `/people`, `/absences`, `/visitors`, `/prayers`, and `/contacts` remain blocked with `403`.
+10. **Test the sermon-series-to-Sunday workflow in preview/production**
+    - Open **Planning → Sermon Series**.
+    - Create a series and add a dated sermon with title, passage/scripture, and big idea/theme.
+    - Open **Sunday** and confirm the sermon appears under **Upcoming messages**.
+    - Click **Plan service** and confirm the new service is prefilled from the sermon and series.
+    - Return to the same message and confirm it now offers **Open service** instead of creating a duplicate.
+    - Refresh and confirm the planning data remains available through the D1/API path.
+
+### Local Wrangler development notes
+
+Use Vite for UI-only development:
+
+```bash
+npm run dev -- --host 127.0.0.1
+```
+
+Use Wrangler when you need Pages Functions and D1 locally:
+
+```bash
+DEV_AUTH_BYPASS=1 DEV_AUTH_ROLE=admin npx wrangler pages dev dist --d1 DB=bible-chapel-ministry-os
+```
+
+A typical local API verification flow is:
+
+```bash
+npm run build
+npx wrangler d1 migrations apply bible-chapel-ministry-os --local
+DEV_AUTH_BYPASS=1 DEV_AUTH_ROLE=admin npx wrangler pages dev dist --d1 DB=bible-chapel-ministry-os
+curl http://127.0.0.1:8788/api/status
+```
+
+### Troubleshooting Cloudflare deployment
+
+- **Missing D1 binding**: `/api/status` reports `d1.bindingAvailable: false` or collection routes return `Cloudflare D1 binding DB is not configured.` Add a Pages D1 binding named exactly `DB` for the active preview/production environment.
+- **Migration not applied**: `/api/status` reports `d1.migrationsApplied: false` with missing table names. Run the D1 migrations against the same database connected to the Pages environment.
+- **Missing Access headers**: API routes return `401 Authentication required`. Confirm Cloudflare Access protects `/api/*` and that requests are reaching Pages through Cloudflare, not directly without Access.
+- **Unauthorized role**: API routes return `403 Forbidden` with the current and required role. Add the user to the appropriate Access role environment variable or `AUTH_ROLE_MAP` in Cloudflare Pages settings.
+- **API fallback behavior**: In local Vite development, planning collections may fall back to localStorage when the API is unavailable. In Cloudflare preview or production, treat API failures as deployment/configuration issues and fix Access, D1 bindings, or migrations instead of relying on localStorage.
+- **Sensitive route returns data**: This is a release blocker. Sensitive collections must remain blocked from API migration and localStorage-only until a later approved phase.
