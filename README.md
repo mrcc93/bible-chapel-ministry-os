@@ -149,3 +149,31 @@ The existing `/api/collections/:collection` scaffold now authenticates the Cloud
 ## Important production note
 
 This prototype should not be used for real prayer requests, visitor details, attendance records, giving data, or pastoral contacts until authentication, D1 persistence, backups, and user permissions are fully implemented.
+
+## Phase 2B planning data API migration
+
+Phase 2B keeps the Phase 2A Cloudflare Access foundation in place and moves only non-sensitive planning data behind authenticated Pages Functions and D1. The frontend still mirrors data to `localStorage` so local/offline development remains usable if the API or D1 binding is unavailable.
+
+D1-backed planning collections in Phase 2B:
+
+- Weekly rhythm days and ministry tasks (`rhythm`, `tasks`)
+- Ministry events (`events`)
+- Annual priorities / annual planning (`annualPlan`)
+- Roadmap items (`roadmap`)
+- Goals (`goals`)
+- Sermon series and sermon planning (`series`)
+- Sunday services, service order items, songs, and slides (`services`)
+- Bulletins / bulletin announcements (`bulletin`)
+
+Still localStorage-only and explicitly blocked from API migration until Phase 2C:
+
+- Stats, attendance, and giving (`stats`)
+- People records (`people`)
+- Absences (`absences`)
+- Visitors (`visitors`)
+- Prayers / prayer requests (`prayers`)
+- Contacts / pastoral contacts (`contacts`)
+
+The `/api/collections/:collection` route now supports authenticated `GET`, `POST`, and collection replacement `PUT` for the Phase 2B planning collections only. `/api/collections/:collection/:id` supports authenticated `PUT`/`PATCH` and `DELETE` for individual planning rows. Create/update requests are validated before writing to D1, and writes attempt to record a basic `audit_log` entry.
+
+For local development only, `DEV_AUTH_BYPASS=1` can provide a fake authenticated user. The bypass is ignored whenever `CF_PAGES` is set, so Cloudflare Pages deployments continue to require real Cloudflare Access headers.
