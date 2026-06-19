@@ -1,4 +1,4 @@
-import { BLOCKED_COLLECTIONS, CARE_COLLECTIONS, PEOPLE_COLLECTIONS, PLANNING_COLLECTIONS, json } from '../_shared/planning-api.js';
+import { BLOCKED_COLLECTIONS, CARE_COLLECTIONS, PEOPLE_COLLECTIONS, PLANNING_COLLECTIONS, STATS_COLLECTIONS, json } from '../_shared/planning-api.js';
 
 const REQUIRED_PLANNING_TABLES = Object.freeze([
   'weekly_rhythm_days',
@@ -19,7 +19,8 @@ const REQUIRED_PLANNING_TABLES = Object.freeze([
   'visitors',
   'prayer_requests',
   'volunteer_absences',
-  'pastoral_contacts'
+  'pastoral_contacts',
+  'attendance_stats'
 ]);
 
 async function checkD1Schema(db) {
@@ -96,8 +97,16 @@ export async function onRequestGet(context) {
       jsonBlobStorage: false,
       minimumRole: PEOPLE_COLLECTIONS.people.minimumRole
     },
+    statsAttendance: {
+      enabled: true,
+      collections: Object.keys(STATS_COLLECTIONS),
+      typedTablesOnly: true,
+      jsonBlobStorage: false,
+      minimumRole: STATS_COLLECTIONS.stats.minimumRole,
+      financialFieldsRole: STATS_COLLECTIONS.stats.financialRole
+    },
     sensitiveCollections: {
-      blockedFromApiMigration: true,
+      blockedFromApiMigration: false,
       localStorageOnly: Object.keys(BLOCKED_COLLECTIONS).filter(collection => collection !== 'settings')
     }
   });

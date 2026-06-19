@@ -7,7 +7,7 @@ export async function onRequest(context) {
   if (access.response) return access.response;
   if (!env.DB) return json({ error: 'Cloudflare D1 binding DB is not configured.' }, { status: 500 });
 
-  if (request.method === 'GET') return json({ collection, data: await listRecords(env.DB, collection) });
+  if (request.method === 'GET') return json({ collection, data: await listRecords(env.DB, collection, data?.authUser) });
 
   if (request.method === 'POST') {
     const body = await readBody(request);

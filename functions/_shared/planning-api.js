@@ -25,10 +25,13 @@ export const CARE_COLLECTIONS = Object.freeze({
   contacts: { minimumRole: ROLES.PASTOR_LEADER }
 });
 
+export const STATS_COLLECTIONS = Object.freeze({
+  stats: { minimumRole: ROLES.PASTOR_LEADER, financialRole: ROLES.ADMIN }
+});
+
 export const BLOCKED_COLLECTIONS = Object.freeze({
-  stats: 'Attendance, statistics, and giving remain localStorage-only until a later phase.',
-  attendance: 'Attendance remains localStorage-only until a later phase.',
-  giving: 'Giving remains localStorage-only until a later phase.',
+  attendance: 'Use the stats collection for attendance records.',
+  giving: 'Giving is handled only as Admin-only fields on the stats collection.',
   settings: 'Organization settings are not part of the Phase 2B planning migration.'
 });
 
@@ -44,6 +47,23 @@ const now = () => new Date().toISOString();
 const clean = value => String(value || '').trim();
 
 const scalarConfigs = {
+
+  stats: {
+    table: 'attendance_stats', order: 'service_date DESC, created_at DESC', required: ['date'],
+    toDb: (row, index, user) => {
+      const attendance = Number(row.attendanceCount ?? row.attendance_count ?? row.adults ?? 0) || 0;
+      const kids = Number(row.kids ?? row.kidsCount ?? row.kids_count ?? 0) || 0;
+      const online = Number(row.online ?? row.onlineCount ?? row.online_count ?? 0) || 0;
+      const visitors = Number(row.visitors ?? row.visitorsCount ?? row.visitors_count ?? 0) || 0;
+      const canWriteGiving = user?.role === ROLES.ADMIN;
+      const givingDollars = canWriteGiving ? Number(row.offering ?? row.givingAmount ?? row.giving_amount ?? 0) || 0 : 0;
+      return { id: row.id || newId(), organization_id: ORG_ID, service_date: row.date || row.serviceDate || row.service_date, service_type: row.serviceType || row.service_type || 'Sunday Worship', adults: attendance, kids, online, visitors_count: visitors, offering_cents: Math.round(givingDollars * 100), notes: row.notes || null };
+    },
+    fromDb: (row, user) => {
+      const canReadGiving = user?.role === ROLES.ADMIN;
+      return { id: row.id, date: row.service_date, serviceDate: row.service_date, serviceType: row.service_type || 'Sunday Worship', adults: row.adults || 0, attendanceCount: row.adults || 0, kids: row.kids || 0, kidsCount: row.kids || 0, online: row.online || 0, visitors: row.visitors_count || 0, visitorsCount: row.visitors_count || 0, offering: canReadGiving ? (Number(row.offering_cents || 0) / 100) : '', givingAmount: canReadGiving ? (Number(row.offering_cents || 0) / 100) : '', notes: row.notes || '', created_at: row.created_at, updated_at: row.updated_at };
+    }
+  },
   rhythm: {
     table: 'weekly_rhythm_days', order: 'sort_order, day', required: ['day'],
     toDb: (row, index) => ({ id: row.id || newId(), organization_id: ORG_ID, day: clean(row.day), title: clean(row.title), focus: row.focus || '', protected_rest: intBool(row.protectedRest), sort_order: index }),
@@ -116,6 +136,7 @@ function validateRow(collection, row) {
   if (collection === 'prayers' && !String(row.request || row.title || '').trim()) return 'Prayer request text or title is required.';
   if (collection === 'absences' && !(String(row.personId || row.person_id || row.personName || row.name || '').trim() && String(row.date || row.absenceDate || '').trim())) return 'Absences require a person/name and date.';
   if (collection === 'contacts' && !(String(row.who || row.name || row.personId || row.visitorId || '').trim() && String(row.date || row.contactDate || row.notes || '').trim())) return 'Contacts require a person/visitor/name and contact date or note.';
+  if (collection === 'stats' && !String(row.date || row.serviceDate || row.service_date || '').trim()) return 'A service date is required.';
   const config = scalarConfigs[collection];
   for (const field of config?.required || []) if (!String(row[field] || '').trim()) return `${field} is required.`;
   return null;
@@ -152,7 +173,7 @@ export async function readBody(request) {
 
 export function getCollectionAccess(collection, authUser) {
   if (BLOCKED_COLLECTIONS[collection]) return { response: json({ error: 'Collection intentionally blocked from API migration', collection, message: BLOCKED_COLLECTIONS[collection] }, { status: 403 }) };
-  const config = PLANNING_COLLECTIONS[collection] || PEOPLE_COLLECTIONS[collection] || CARE_COLLECTIONS[collection];
+  const config = PLANNING_COLLECTIONS[collection] || PEOPLE_COLLECTIONS[collection] || CARE_COLLECTIONS[collection] || STATS_COLLECTIONS[collection];
   if (!config) return { response: json({ error: 'Unknown collection' }, { status: 404 }) };
   const roleError = requireRole(authUser, config.minimumRole);
   if (roleError) return { response: roleError };
@@ -180,10 +201,10 @@ async function updateTyped(db, table, id, row) {
   await db.prepare(`UPDATE ${table} SET ${cols.map(c => `${c} = ?`).join(', ')}, updated_at = ? WHERE id = ?`).bind(...cols.map(c => row[c]), now(), id).run();
 }
 
-async function listScalar(db, collection) {
+async function listScalar(db, collection, user) {
   const config = scalarConfigs[collection];
   const { results } = await db.prepare(`SELECT * FROM ${config.table} WHERE organization_id = ? ORDER BY ${config.order}`).bind(ORG_ID).all();
-  return (results || []).map(config.fromDb);
+  return (results || []).map(row => config.fromDb(row, user));
 }
 
 async function replaceScalar(db, collection, rows, user) {
@@ -191,33 +212,34 @@ async function replaceScalar(db, collection, rows, user) {
   await ensureOrg(db);
   const batch = [db.prepare(`DELETE FROM ${config.table} WHERE organization_id = ?`).bind(ORG_ID)];
   rows.forEach((row, index) => {
-    const dbRow = config.toDb(row, index);
+    const dbRow = config.toDb(row, index, user);
     const cols = columns(dbRow);
     batch.push(db.prepare(`INSERT INTO ${config.table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(...cols.map(c => dbRow[c])));
   });
   await db.batch(batch);
   await audit(db, { user, collection, action: 'replace', metadata: { count: rows.length } });
-  return listScalar(db, collection);
+  return listScalar(db, collection, user);
 }
 
 async function createScalar(db, collection, payload, user) {
   const config = scalarConfigs[collection];
   await ensureOrg(db);
-  const dbRow = config.toDb(payload, Date.now());
+  const dbRow = config.toDb(payload, Date.now(), user);
   await insertTyped(db, config.table, dbRow);
   await audit(db, { user, collection, action: 'create', id: dbRow.id });
-  return config.fromDb(dbRow);
+  return config.fromDb(dbRow, user);
 }
 
 async function updateScalar(db, collection, id, payload, user) {
   const config = scalarConfigs[collection];
   const existing = await db.prepare(`SELECT * FROM ${config.table} WHERE organization_id = ? AND id = ?`).bind(ORG_ID, id).first();
   if (!existing) return null;
-  const merged = { ...config.fromDb(existing), ...payload, id };
-  const dbRow = config.toDb(merged, existing.sort_order || 0);
+  const merged = { ...config.fromDb(existing, user), ...payload, id };
+  const dbRow = config.toDb(merged, existing.sort_order || 0, user);
+  if (collection === 'stats' && user?.role !== ROLES.ADMIN) dbRow.offering_cents = existing.offering_cents || 0;
   await updateTyped(db, config.table, id, dbRow);
   await audit(db, { user, collection, action: 'update', id });
-  return config.fromDb(dbRow);
+  return config.fromDb(dbRow, user);
 }
 
 async function deleteScalar(db, collection, id, user) {
@@ -297,8 +319,8 @@ async function replaceBulletin(db, payload, user) {
   return listBulletin(db);
 }
 
-export async function listRecords(db, collection) {
-  if (scalarConfigs[collection]) return listScalar(db, collection);
+export async function listRecords(db, collection, user) {
+  if (scalarConfigs[collection]) return listScalar(db, collection, user);
   if (collection === 'series') return listSeries(db);
   if (collection === 'services') return listServices(db);
   if (collection === 'bulletin') return listBulletin(db);
@@ -321,7 +343,7 @@ export async function createRecord(db, collection, payload, user) {
 
 export async function updateRecord(db, collection, id, payload, user) {
   if (scalarConfigs[collection]) return updateScalar(db, collection, id, payload, user);
-  const rows = await listRecords(db, collection);
+  const rows = await listRecords(db, collection, user);
   if (!Array.isArray(rows)) return null;
   const found = rows.some(row => row.id === id);
   if (!found) return null;
@@ -330,7 +352,7 @@ export async function updateRecord(db, collection, id, payload, user) {
 
 export async function deleteRecord(db, collection, id, user) {
   if (scalarConfigs[collection]) return deleteScalar(db, collection, id, user);
-  const rows = await listRecords(db, collection);
+  const rows = await listRecords(db, collection, user);
   if (!Array.isArray(rows) || !rows.some(row => row.id === id)) return false;
   await replaceCollection(db, collection, rows.filter(row => row.id !== id), user);
   await audit(db, { user, collection, action: 'delete', id });
