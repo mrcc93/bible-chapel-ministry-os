@@ -48,6 +48,7 @@ const AUTH_ROLE_LABELS = {
 const ROLE_RANK = { volunteer_view_only: 1, pastor_leader: 2, admin: 3 };
 const canManagePeople = auth => (ROLE_RANK[auth?.role] || 0) >= ROLE_RANK.pastor_leader;
 const canManageCare = canManagePeople;
+const canManagePlanning = auth => (ROLE_RANK[auth?.role] || 0) >= ROLE_RANK.pastor_leader;
 const isAdmin = auth => auth?.role === 'admin';
 
 const canCheckStatus = () => typeof window !== 'undefined' && window.location.protocol !== 'file:';
@@ -84,23 +85,35 @@ const starterRhythm = [
   { id: uid(), day: 'Saturday', title: 'Final prep and family margin', focus: 'Only essential checks: Sunday readiness, volunteer confirmations, personal preparation, and protecting home life.', protectedRest: false }
 ];
 
-const roadmap = [
-  ['Month 1', 'Vision and Prayer', 'Hold a vision meeting, start weekly renewal prayer, name A New Chapter at Bible Chapel, create revitalization team.', '12–15'],
-  ['Month 2', 'Worship Bridge and Projector', 'Tasteful projector/screen, project Scripture and lyrics, introduce fresh hymn arrangements.', '15–20'],
-  ['Month 3', 'Sunday Experience System', 'Greeters, coffee, connection cards, tighter service flow and start time.', '18–25'],
-  ['Month 4', 'Public Identity', 'Update Facebook and Google Business Profile, Plan Your Visit post, weekly Josh video.', '20–30'],
-  ['Month 5', 'Chapel Night Launch', 'Monthly Chapel Night with acoustic worship, Scripture, prayer, coffee/dessert.', '25–35'],
-  ['Month 6', 'Open the Schoolhouse', 'Clean, stage, name The Schoolhouse at Bible Chapel, host first Dinner at the Schoolhouse.', '30–40'],
-  ['Month 7', 'Back to Church Sunday', 'First major invite Sunday with cards, event, local ad, and follow-up.', '50–75 event'],
-  ['Month 8', 'Retention Month', 'Contact guests, New to Bible Chapel group, invite newcomers into rhythms.', '35–50'],
-  ['Month 9', 'Worship Team Growth', 'Add vocalist/keys if ready, test new songs at Chapel Night.', '45–60'],
-  ['Month 10', 'Families and Kids', 'Activity bags, clean kids area, safety process, family Schoolhouse event.', '50–65'],
-  ['Month 11', 'Major Seasonal Sunday', 'Easter/Christmas push with 4–6 weeks promotion and strong follow-up.', '100 event'],
-  ['Month 12', 'Lock In the Next Stage', 'Next-steps lunch, review metrics, set Year 2 priorities.', '60–75'],
-  ['Month 18', 'Community Partnerships', 'Serve teachers, first responders, foster families, single parents, and local needs.', '80–95'],
-  ['Month 23', '100-Average Push', 'Invite series, re-engage previous guests, add serving pathways.', '100 average'],
-  ['Month 24', 'Commission the Future', 'Celebration Sunday, testimonies, thank legacy members, publish Year 3 vision.', '100+']
-].map(([month, title, action, goal]) => ({ id: uid(), month, title, action, goal, status: 'Not started' }));
+const roadmapStarterItems = [
+  [1, 'Vision and Prayer', 'Gather leaders around the renewal vision, begin focused prayer, and define the next-chapter language.', '12–15'],
+  [2, 'Worship Bridge and Projector', 'Improve the worship environment with tasteful projection, readable lyrics, Scripture, and familiar songs with fresh support.', '15–20'],
+  [3, 'Sunday Experience System', 'Build a repeatable welcome, coffee, connection card, service flow, and follow-up rhythm for every Sunday.', '18–25'],
+  [4, 'Public Identity', 'Refresh public-facing touchpoints so people can understand who Bible Chapel is and how to visit.', '20–30'],
+  [5, 'Chapel Night Launch', 'Start a monthly Chapel Night with worship, Scripture, prayer, simple hospitality, and invitations.', '25–35'],
+  [6, 'Open the Schoolhouse', 'Clean, stage, name, and use the Schoolhouse as a warm community doorway.', '30–40'],
+  [7, 'Back to Church Sunday', 'Run the first major invite Sunday with cards, digital promotion, hospitality, and follow-up.', '50–75 event'],
+  [8, 'Retention Month', 'Focus on guest contact, newcomer conversations, and helping people take a next step.', '35–50'],
+  [9, 'Worship Team Growth', 'Develop additional worship volunteers and test new songs in lower-pressure environments.', '45–60'],
+  [10, 'Families and Kids', 'Strengthen the family welcome, kids space, safety process, and child-friendly Sunday tools.', '50–65'],
+  [11, 'Major Seasonal Sunday', 'Prepare a strong Easter, Christmas, or other seasonal Sunday with promotion and follow-up.', '100 event'],
+  [12, 'Lock In the Next Stage', 'Review metrics, celebrate progress, clarify lessons learned, and set Year 2 priorities.', '60–75'],
+  [13, 'Leadership Pipeline', 'Identify, invite, and train emerging leaders for ministry ownership and care.', '65–80'],
+  [14, 'Small Groups and Discipleship', 'Create simple discipleship pathways through groups, studies, or next-step gatherings.', '70–85'],
+  [15, 'Kids Ministry Foundation', 'Put dependable people, spaces, safety expectations, and communication around kids ministry.', '70–85'],
+  [16, 'Schoolhouse Rhythm', 'Move from occasional Schoolhouse events to a sustainable monthly or seasonal rhythm.', '75–90'],
+  [17, 'Worship Depth', 'Deepen musical, spiritual, and volunteer preparation for worship gatherings.', '75–90'],
+  [18, 'Community Partnerships', 'Serve and partner with schools, first responders, foster families, single parents, and local needs.', '80–95'],
+  [19, 'Capacity and Service Planning', 'Assess seating, volunteers, kids space, parking, and whether growth requires service adjustments.', '85–100'],
+  [20, 'Local Launch Moment', 'Create another clear community-facing launch moment with invitation and follow-up.', '90–110 event'],
+  [21, 'Retention and Care System', 'Strengthen care, absence follow-up, newcomer next steps, and member connection systems.', '90–100'],
+  [22, 'Facility and Growth Discernment', 'Discern facility needs, growth constraints, and wise next investments.', '95–105'],
+  [23, '100-Average Push', 'Invite, re-engage guests, clarify serving pathways, and work toward a 100-average rhythm.', '100 average'],
+  [24, 'Commission the Future', 'Celebrate testimonies, thank legacy members, and commission the church into the next stage.', '100+']
+];
+
+const createRoadmapItem = ([monthNumber, title, action, goal]) => ({ id: uid(), month: `Month ${monthNumber}`, title, action, goal, status: 'Not started' });
+const roadmap = roadmapStarterItems.map(createRoadmapItem);
 
 const blankServiceOrder = [
   'Welcome', 'Opening Prayer', 'Worship / Hymn', 'Scripture Reading', 'Announcements', 'Offering', 'Sermon', 'Response / Closing Song', 'Benediction'
@@ -235,7 +248,7 @@ function App() {
   const planningApiError = planningStatuses.find(status => status.error);
   const planningLoading = planningStatuses.some(status => status.loading);
 
-  const ctx = { settings, setSettings, rhythm, setRhythm, tasks, setTasks, stats, setStats, events, setEvents, annualPlan, setAnnualPlan, services, setServices, people, setPeople, absences, setAbsences, visitors, setVisitors, prayers, setPrayers, contacts, setContacts, series, setSeries, bulletin, setBulletin, goals, setGoals, plan, setPlan, flash, setView, dataStatus, apiStatus };
+  const ctx = { settings, setSettings, rhythm, setRhythm, tasks, setTasks, stats, setStats, events, setEvents, annualPlan, setAnnualPlan, services, setServices, people, setPeople, absences, setAbsences, visitors, setVisitors, prayers, setPrayers, contacts, setContacts, series, setSeries, bulletin, setBulletin, goals, setGoals, plan, setPlan, flash, setView, dataStatus, apiStatus, auth: apiStatus?.auth };
 
   const nav = [
     ['dashboard', Home, 'Dashboard'], ['rhythm', ClipboardList, 'Weekly Rhythm'], ['planning', CalendarDays, 'Planning'], ['sunday', BookOpen, 'Sunday'], ['care', HeartHandshake, 'Care'], ['stats', BarChart3, 'Statistics'], ['bulletin', Mail, 'Bulletin'], ['settings', Settings, 'Settings']
@@ -357,7 +370,7 @@ function Rhythm({ rhythm, setRhythm, tasks, setTasks, dataStatus }) {
   const addTask = () => { if (!task.title.trim()) return; setTasks(rows => [{ ...task, id: uid(), done: false }, ...rows]); setTask({ title: '', day: task.day, lane: task.lane, due: task.due }); };
   const updateDay = (id, patch) => setRhythm(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
   const grouped = rhythm.map(day => ({ ...day, tasks: tasks.filter(t => t.day === day.day && !t.done) }));
-  return <Page eyebrow="Weekly Rhythm" title="Plan the week before the week runs you." description="Use this page to keep track of the regular ministry rhythm at Bible Chapel — Sunday service, follow-up, planning, communication, and the behind-the-scenes work that helps the church stay prepared.">
+  return <Page eyebrow="Weekly Rhythm" title="Plan the week before the week runs you." description="Use this page to organize the recurring work of ministry: Sunday preparation, guest follow-up, Bible study, communication, planning, and rest.">
     <DataStateNotice status={dataStatus?.rhythm?.loading ? dataStatus.rhythm : dataStatus?.tasks} empty={!rhythm.length && !tasks.length} emptyTitle="No weekly rhythm loaded" emptyText="Add rhythm days and tasks once D1/API is connected or while working locally."/>
     <Card title="Add a ministry task" subtitle="Assign it to a day so the work has a home.">
       <div className="form-grid four"><Field label="Task"><Input value={task.title} onChange={e => setTask({ ...task, title: e.target.value })} placeholder="Call first-time guest"/></Field><Field label="Day"><Select value={task.day} onChange={e => setTask({ ...task, day: e.target.value })}>{rhythm.map(r => <option key={r.id}>{r.day}</option>)}</Select></Field><Field label="Lane"><Select value={task.lane} onChange={e => setTask({ ...task, lane: e.target.value })}>{['Follow-up','Sunday','Creative','Podcast','Schoolhouse','Care','Admin','Prayer'].map(x => <option key={x}>{x}</option>)}</Select></Field><Field label="Due"><Input type="date" value={task.due} onChange={e => setTask({ ...task, due: e.target.value })}/></Field></div>
@@ -371,13 +384,13 @@ function Rhythm({ rhythm, setRhythm, tasks, setTasks, dataStatus }) {
 }
 function TaskRow({ task, setTasks, readonly = false }) { return <div className={`task ${task.done ? 'done' : ''}`}><div><strong>{task.title}</strong><p>{task.day} · {task.lane} · due {fmtDate(task.due)}</p></div>{!readonly && <button className="icon-button" onClick={() => setTasks(rows => rows.map(t => t.id === task.id ? { ...t, done: !t.done } : t))}><CheckCircle2 size={18}/></button>}</div>; }
 
-function Planning({ events, setEvents, annualPlan, setAnnualPlan, series, setSeries, goals, setGoals, plan, setPlan, dataStatus }) {
+function Planning({ events, setEvents, annualPlan, setAnnualPlan, series, setSeries, goals, setGoals, plan, setPlan, dataStatus, auth }) {
   const [tab, setTab] = useState('month');
   return <Page eyebrow="Planning" title="Weekly, monthly, yearly" description="Use this view for the bigger ministry picture: monthly ministry pushes, annual planning, sermon series, goals, and the revitalization roadmap.">
     <Tabs active={tab} setActive={setTab} items={[["month","Monthly Plan"],["annual","Annual Plan"],["roadmap","Roadmap"],["series","Sermon Series"],["goals","Goals"]]}/>
     {tab === 'month' && <><DataStateNotice status={dataStatus?.events} empty={!events.length} emptyTitle="No ministry events yet" emptyText="Add your next event or ministry push."/><MonthlyPlan events={events} setEvents={setEvents}/></>}
     {tab === 'annual' && <><DataStateNotice status={dataStatus?.annualPlan} empty={!annualPlan.length} emptyTitle="No annual priorities yet" emptyText="Add the big rocks for the year."/><AnnualPlan annualPlan={annualPlan} setAnnualPlan={setAnnualPlan}/></>}
-    {tab === 'roadmap' && <><DataStateNotice status={dataStatus?.roadmap} empty={!plan.length} emptyTitle="No roadmap items yet" emptyText="Create the first roadmap item."/><YearRoadmap plan={plan} setPlan={setPlan}/></>}
+    {tab === 'roadmap' && <YearRoadmap plan={plan} setPlan={setPlan} status={dataStatus?.roadmap} canManage={canManagePlanning(auth)}/>}
     {tab === 'series' && <><DataStateNotice status={dataStatus?.series} empty={!series.length} emptyTitle="No sermon series yet" emptyText="Create a series, then add dated sermons."/><SeriesPlan series={series} setSeries={setSeries}/></>}
     {tab === 'goals' && <><DataStateNotice status={dataStatus?.goals} empty={!goals.length} emptyTitle="No goals yet" emptyText="Create the first ministry goal."/><Goals goals={goals} setGoals={setGoals}/></>}
   </Page>;
@@ -415,9 +428,48 @@ function AnnualPlan({ annualPlan, setAnnualPlan }) {
     </Card>
   </div>;
 }
-function YearRoadmap({ plan, setPlan }) {
-  return <Card title="24-month revitalization roadmap" subtitle="The long-range roadmap stays separate from annual planning so the yearly plan can change without losing the bigger arc.">
-    <div className="roadmap-list">{plan.map(item => <div key={item.id} className="roadmap-item"><div><StatusPill tone="gold">{item.month}</StatusPill><h3>{item.title}</h3><p>{item.action}</p><small>Goal: {item.goal}</small></div><Select value={item.status} onChange={e => setPlan(rows => rows.map(r => r.id === item.id ? { ...r, status: e.target.value } : r))}>{['Not started','In progress','Done','Paused'].map(s => <option key={s}>{s}</option>)}</Select></div>)}</div>
+function monthNumber(item) {
+  const match = String(item.month || '').match(/\d+/);
+  return match ? Number(match[0]) : 0;
+}
+function normalizeRoadmapForm(item = {}) {
+  return { id: item.id || '', month: item.month || '', title: item.title || '', action: item.action || '', goal: item.goal || '', status: item.status || 'Not started' };
+}
+function YearRoadmap({ plan, setPlan, status, canManage }) {
+  const emptyForm = { month: '', title: '', action: '', goal: '', status: 'Not started' };
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState('');
+  const ordered = [...plan].sort((a, b) => monthNumber(a) - monthNumber(b) || String(a.month || '').localeCompare(String(b.month || '')));
+  const yearOne = ordered.filter(item => monthNumber(item) <= 12 || !monthNumber(item));
+  const yearTwo = ordered.filter(item => monthNumber(item) > 12);
+  const save = () => {
+    if (!canManage || !form.month.trim() || !form.title.trim()) return;
+    const payload = { ...form, month: form.month.trim(), title: form.title.trim(), action: form.action.trim(), goal: form.goal.trim(), status: form.status || 'Not started' };
+    if (editingId) setPlan(rows => rows.map(item => item.id === editingId ? { ...payload, id: editingId } : item));
+    else setPlan(rows => [...rows, { ...payload, id: uid() }]);
+    setEditingId('');
+    setForm(emptyForm);
+  };
+  const edit = item => { setEditingId(item.id); setForm(normalizeRoadmapForm(item)); };
+  const cancel = () => { setEditingId(''); setForm(emptyForm); };
+  const remove = item => { if (window.confirm(`Delete ${item.month}: ${item.title}?`)) setPlan(rows => rows.filter(row => row.id !== item.id)); };
+  const updateStatus = (item, nextStatus) => setPlan(rows => rows.map(row => row.id === item.id ? { ...row, status: nextStatus } : row));
+  const reorder = (item, dir) => {
+    const index = ordered.findIndex(row => row.id === item.id);
+    const moved = move(ordered, index, dir).map((row, idx) => ({ ...row, sortOrder: idx }));
+    setPlan(moved);
+  };
+  const addStarter = () => {
+    if (!canManage || plan.length) return;
+    setPlan(roadmapStarterItems.map(createRoadmapItem));
+  };
+  const renderItems = items => items.length ? <div className="roadmap-list">{items.map(item => <div key={item.id} className="roadmap-item"><div><StatusPill tone="gold">{item.month}</StatusPill><h3>{item.title}</h3><p>{item.action}</p>{item.goal && <small>Goal: {item.goal}</small>}</div><div className="row-actions">{canManage ? <><Select value={item.status} onChange={e => updateStatus(item, e.target.value)}>{['Not started','In progress','Done','Paused'].map(s => <option key={s}>{s}</option>)}</Select><Button icon={Edit3} onClick={() => edit(item)}>Edit</Button><button className="icon-button" onClick={() => reorder(item, -1)} aria-label={`Move ${item.title} earlier`}>↑</button><button className="icon-button" onClick={() => reorder(item, 1)} aria-label={`Move ${item.title} later`}>↓</button><button className="icon-button danger" onClick={() => remove(item)} aria-label={`Delete ${item.title}`}><Trash2 size={16}/></button></> : <StatusPill>{item.status}</StatusPill>}</div></div>)}</div> : null;
+  return <Card title="24-month revitalization roadmap" subtitle="Manage the long-range revitalization plan by month, status, and next-step focus." actions={canManage && <Button variant="primary" icon={Plus} onClick={() => document.getElementById('roadmap-title')?.focus()}>Add Roadmap Item</Button>}>
+    <DataStateNotice status={status} empty={false} label="roadmap"/>
+    {!plan.length && <Empty title="No roadmap items yet" text={canManage ? 'Add one roadmap item or install the optional 24-month Bible Chapel starter roadmap.' : 'Roadmap items will appear here once a leader adds them.'} action={canManage && <div className="inline-add"><Button variant="primary" icon={Plus} onClick={() => document.getElementById('roadmap-title')?.focus()}>Add roadmap item</Button><Button icon={Map} onClick={addStarter}>Add 24-month starter roadmap</Button></div>}/>}
+    {canManage && <div className="roadmap-editor"><div className="form-grid two"><Field label="Month number or phase"><Input value={form.month} onChange={e => setForm({ ...form, month: e.target.value })} placeholder="Month 1"/></Field><Field label="Title"><Input id="roadmap-title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Vision and Prayer"/></Field><Field label="Status"><Select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>{['Not started','In progress','Done','Paused'].map(s => <option key={s}>{s}</option>)}</Select></Field><Field label="Goal / attendance target"><Input value={form.goal} onChange={e => setForm({ ...form, goal: e.target.value })} placeholder="25–35"/></Field></div><Field label="Description / notes"><Textarea value={form.action} onChange={e => setForm({ ...form, action: e.target.value })} placeholder="What should happen during this month or phase?"/></Field><div className="inline-add"><Button variant="primary" icon={editingId ? CheckCircle2 : Plus} onClick={save}>{editingId ? 'Save roadmap item' : 'Add roadmap item'}</Button>{editingId && <Button icon={X} onClick={cancel}>Cancel edit</Button>}{!plan.length && <Button icon={Map} onClick={addStarter}>Add 24-month starter roadmap</Button>}</div></div>}
+    {yearOne.length > 0 && <section className="roadmap-year"><h3>Year 1</h3>{renderItems(yearOne)}</section>}
+    {yearTwo.length > 0 && <section className="roadmap-year"><h3>Year 2</h3>{renderItems(yearTwo)}</section>}
   </Card>;
 }
 function SeriesPlan({ series, setSeries }) {

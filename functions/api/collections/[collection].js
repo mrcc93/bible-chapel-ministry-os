@@ -3,7 +3,7 @@ import { createRecord, getCollectionAccess, json, listRecords, readBody, replace
 export async function onRequest(context) {
   const { request, env, params, data } = context;
   const collection = params.collection;
-  const access = getCollectionAccess(collection, data?.authUser);
+  const access = getCollectionAccess(collection, data?.authUser, request.method);
   if (access.response) return access.response;
   if (!env.DB) return json({ error: 'Cloudflare D1 binding DB is not configured.' }, { status: 500 });
 

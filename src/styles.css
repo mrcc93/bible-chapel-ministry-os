@@ -101,7 +101,13 @@ h1,h2,h3{font-family:Fraunces,Georgia,serif;margin:0;line-height:1.12;color:var(
 .rest-card{background:#f2f8fd;border-color:#c8ddeb}
 .task.done{opacity:.6;text-decoration:line-through}
 .roadmap-list{display:grid;gap:12px}
+.roadmap-editor{border:1px solid var(--line);border-radius:16px;background:var(--blue-soft);padding:14px;margin:14px 0 18px}
+.roadmap-year{display:grid;gap:10px;margin-top:18px}
+.roadmap-year>h3{font-size:18px;color:var(--ink);margin:0}
 .roadmap-item{align-items:center}
+.roadmap-item>div:first-child{min-width:0}
+.roadmap-item .row-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.roadmap-item .row-actions select{min-width:145px}
 .roadmap-item h3,.roadmap-focus h3{font-size:20px;margin-top:9px}
 .roadmap-item p,.roadmap-focus p{color:var(--muted);line-height:1.55}
 .roadmap-item small,.roadmap-focus small{font-weight:800;color:var(--gold-2)}
@@ -135,4 +141,4 @@ h1,h2,h3{font-family:Fraunces,Georgia,serif;margin:0;line-height:1.12;color:var(
 .status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 @media(max-width:950px){.status-grid{grid-template-columns:1fr}}
 .quick-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}.setup-list{display:grid;gap:8px}.empty-action{margin-top:14px;display:flex;justify-content:center}.row-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.info-row>div{min-width:0}.edit-row{grid-template-columns:auto minmax(140px,1fr) minmax(140px,1fr) auto}.edit-row input{min-width:0}
-@media(max-width:700px){.card{padding:16px}.card-head{display:block}.btn{width:100%;min-height:44px;white-space:normal}.quick-actions .btn,.page-actions .btn{width:auto}.info-row,.task,.roadmap-item{display:block}.info-row .icon-button,.task .icon-button{margin-top:10px}.row-actions{margin-top:10px}.row-actions .btn,.row-actions select{width:100%}.edit-row{display:grid;grid-template-columns:auto 1fr;gap:8px}.edit-row .reorder{grid-row:1 / span 2}.edit-row .icon-button{grid-column:2;width:100%}.tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.tabs button{white-space:nowrap;min-height:44px}.goal div:first-child{display:block}.mobile-nav{overflow-x:auto}.mobile-nav button{min-width:72px}.status-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.card{padding:16px}.card-head{display:block}.btn{width:100%;min-height:44px;white-space:normal}.quick-actions .btn,.page-actions .btn{width:auto}.info-row,.task,.roadmap-item{display:block}.info-row .icon-button,.task .icon-button{margin-top:10px}.inline-add{flex-direction:column;align-items:stretch}.roadmap-item .row-actions{justify-content:stretch;margin-top:10px}.row-actions{margin-top:10px}.row-actions .btn,.row-actions select,.row-actions .icon-button{width:100%;min-height:44px}.edit-row{display:grid;grid-template-columns:auto 1fr;gap:8px}.edit-row .reorder{grid-row:1 / span 2}.edit-row .icon-button{grid-column:2;width:100%}.tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.tabs button{white-space:nowrap;min-height:44px}.goal div:first-child{display:block}.mobile-nav{overflow-x:auto}.mobile-nav button{min-width:72px}.status-grid{grid-template-columns:1fr}}

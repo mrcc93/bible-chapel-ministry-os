@@ -7,7 +7,7 @@ export const PLANNING_COLLECTIONS = Object.freeze({
   tasks: { minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
   events: { minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
   annualPlan: { minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
-  roadmap: { minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
+  roadmap: { minimumRole: ROLES.VOLUNTEER_VIEW_ONLY, writeMinimumRole: ROLES.PASTOR_LEADER },
   goals: { minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
   series: { minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
   services: { minimumRole: ROLES.VOLUNTEER_VIEW_ONLY },
@@ -171,11 +171,12 @@ export async function readBody(request) {
   try { return await request.json(); } catch { return null; }
 }
 
-export function getCollectionAccess(collection, authUser) {
+export function getCollectionAccess(collection, authUser, method = 'GET') {
   if (BLOCKED_COLLECTIONS[collection]) return { response: json({ error: 'Collection intentionally blocked from API migration', collection, message: BLOCKED_COLLECTIONS[collection] }, { status: 403 }) };
   const config = PLANNING_COLLECTIONS[collection] || PEOPLE_COLLECTIONS[collection] || CARE_COLLECTIONS[collection] || STATS_COLLECTIONS[collection];
   if (!config) return { response: json({ error: 'Unknown collection' }, { status: 404 }) };
-  const roleError = requireRole(authUser, config.minimumRole);
+  const writeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(String(method || 'GET').toUpperCase());
+  const roleError = requireRole(authUser, writeMethod ? (config.writeMinimumRole || config.minimumRole) : config.minimumRole);
   if (roleError) return { response: roleError };
   return { config };
 }
