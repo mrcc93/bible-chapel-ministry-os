@@ -18,12 +18,17 @@ export const PEOPLE_COLLECTIONS = Object.freeze({
   people: { minimumRole: ROLES.PASTOR_LEADER }
 });
 
+export const CARE_COLLECTIONS = Object.freeze({
+  visitors: { minimumRole: ROLES.PASTOR_LEADER },
+  prayers: { minimumRole: ROLES.PASTOR_LEADER },
+  absences: { minimumRole: ROLES.PASTOR_LEADER },
+  contacts: { minimumRole: ROLES.PASTOR_LEADER }
+});
+
 export const BLOCKED_COLLECTIONS = Object.freeze({
-  stats: 'Attendance, statistics, and giving remain localStorage-only until later Phase 2C steps.',
-  absences: 'Absence records remain localStorage-only until Phase 2C.',
-  visitors: 'Visitor records remain localStorage-only until Phase 2C.',
-  prayers: 'Prayer requests remain localStorage-only until Phase 2C.',
-  contacts: 'Pastoral contacts remain localStorage-only until Phase 2C.',
+  stats: 'Attendance, statistics, and giving remain localStorage-only until a later phase.',
+  attendance: 'Attendance remains localStorage-only until a later phase.',
+  giving: 'Giving remains localStorage-only until a later phase.',
   settings: 'Organization settings are not part of the Phase 2B planning migration.'
 });
 
@@ -73,7 +78,28 @@ const scalarConfigs = {
     table: 'people', order: 'name COLLATE NOCASE, created_at', required: ['name'],
     toDb: row => ({ id: row.id || newId(), organization_id: ORG_ID, name: clean(row.name), role: row.status || row.category || row.role || row.source || null, phone: clean(row.phone) || null, email: clean(row.email).toLowerCase() || null, notes: row.notes || null, active: row.active === false ? 0 : 1 }),
     fromDb: row => ({ id: row.id, name: row.name, phone: row.phone || '', email: row.email || '', notes: row.notes || '', status: row.role || '', category: row.role || '', source: row.role || '', active: fromBool(row.active), created_at: row.created_at, updated_at: row.updated_at })
+  },
+  visitors: {
+    table: 'visitors', order: 'visit_date DESC, created_at DESC', required: ['name'],
+    toDb: row => ({ id: row.id || newId(), organization_id: ORG_ID, name: clean(row.name), visit_date: row.date || row.visitDate || null, phone: clean(row.phone) || null, email: clean(row.email).toLowerCase() || null, status: row.status || 'New', follow_up_notes: row.notes || row.followUpNotes || null, person_id: row.personId || row.person_id || null, converted_person_id: row.convertedPersonId || row.converted_person_id || null }),
+    fromDb: row => ({ id: row.id, name: row.name, date: row.visit_date || '', visitDate: row.visit_date || '', phone: row.phone || '', email: row.email || '', status: row.status || 'New', notes: row.follow_up_notes || '', followUpNotes: row.follow_up_notes || '', personId: row.person_id || '', convertedPersonId: row.converted_person_id || '', created_at: row.created_at, updated_at: row.updated_at })
+  },
+  prayers: {
+    table: 'prayer_requests', order: 'request_date DESC, created_at DESC', required: [],
+    toDb: row => ({ id: row.id || newId(), organization_id: ORG_ID, requester_name: row.who || row.requesterName || null, request: clean(row.request || row.title), title: row.title || null, request_date: row.date || row.requestDate || null, status: row.status || 'Ongoing', visibility: row.visibility || 'private', person_id: row.personId || row.person_id || null }),
+    fromDb: row => ({ id: row.id, request: row.request, title: row.title || '', who: row.requester_name || '', requesterName: row.requester_name || '', date: row.request_date || row.created_at?.slice(0,10) || '', requestDate: row.request_date || '', status: row.status || 'Ongoing', visibility: row.visibility || 'private', personId: row.person_id || '', created_at: row.created_at, updated_at: row.updated_at })
+  },
+  absences: {
+    table: 'volunteer_absences', order: 'absence_date DESC, created_at DESC', required: [],
+    toDb: row => ({ id: row.id || newId(), organization_id: ORG_ID, person_id: row.personId || row.person_id || null, person_name: row.personName || row.name || null, absence_date: row.date || row.absenceDate, reason: row.notes || row.reason || null }),
+    fromDb: row => ({ id: row.id, personId: row.person_id || '', personName: row.person_name || '', name: row.person_name || '', date: row.absence_date || '', absenceDate: row.absence_date || '', notes: row.reason || '', reason: row.reason || '', missingIds: row.person_id ? [row.person_id] : [] })
+  },
+  contacts: {
+    table: 'pastoral_contacts', order: 'contact_date DESC, created_at DESC', required: [],
+    toDb: row => ({ id: row.id || newId(), organization_id: ORG_ID, name: clean(row.who || row.name), contact_date: row.date || row.contactDate || null, type: row.method || row.type || null, next_step: row.nextStep || row.next_step || null, notes: row.notes || null, person_id: row.personId || row.person_id || null, visitor_id: row.visitorId || row.visitor_id || null }),
+    fromDb: row => ({ id: row.id, who: row.name, name: row.name, date: row.contact_date || '', contactDate: row.contact_date || '', method: row.type || '', type: row.type || '', nextStep: row.next_step || '', notes: row.notes || '', personId: row.person_id || '', visitorId: row.visitor_id || '', created_at: row.created_at, updated_at: row.updated_at })
   }
+
 };
 
 function validateRow(collection, row) {
@@ -82,11 +108,14 @@ function validateRow(collection, row) {
   if (collection === 'bulletin') return row.announcements && !Array.isArray(row.announcements) ? 'Bulletin announcements must be an array.' : null;
   if (collection === 'services') return !String(row.date || '').trim() ? 'A service date is required.' : null;
   if (collection === 'series') return !String(row.title || '').trim() ? 'A series title is required.' : null;
-  if (collection === 'people') {
+  if (['people', 'visitors'].includes(collection)) {
     if (!String(row.name || '').trim()) return 'Name is required.';
     if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(row.email).trim())) return 'Email should look like name@example.com.';
     if (row.phone && String(row.phone).replace(/[^0-9]/g, '').length < 7) return 'Phone should include at least seven digits.';
   }
+  if (collection === 'prayers' && !String(row.request || row.title || '').trim()) return 'Prayer request text or title is required.';
+  if (collection === 'absences' && !(String(row.personId || row.person_id || row.personName || row.name || '').trim() && String(row.date || row.absenceDate || '').trim())) return 'Absences require a person/name and date.';
+  if (collection === 'contacts' && !(String(row.who || row.name || row.personId || row.visitorId || '').trim() && String(row.date || row.contactDate || row.notes || '').trim())) return 'Contacts require a person/visitor/name and contact date or note.';
   const config = scalarConfigs[collection];
   for (const field of config?.required || []) if (!String(row[field] || '').trim()) return `${field} is required.`;
   return null;
@@ -95,7 +124,7 @@ function validateRow(collection, row) {
 function validatePartialRow(collection, row) {
   if (!row || typeof row !== 'object' || Array.isArray(row)) return 'Row must be an object.';
   if (row.id != null && typeof row.id !== 'string') return 'Row id must be a string.';
-  if (collection === 'people') {
+  if (['people', 'visitors'].includes(collection)) {
     if (Object.prototype.hasOwnProperty.call(row, 'name') && !String(row.name || '').trim()) return 'Name is required.';
     if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(row.email).trim())) return 'Email should look like name@example.com.';
     if (row.phone && String(row.phone).replace(/[^0-9]/g, '').length < 7) return 'Phone should include at least seven digits.';
@@ -123,7 +152,7 @@ export async function readBody(request) {
 
 export function getCollectionAccess(collection, authUser) {
   if (BLOCKED_COLLECTIONS[collection]) return { response: json({ error: 'Collection intentionally blocked from API migration', collection, message: BLOCKED_COLLECTIONS[collection] }, { status: 403 }) };
-  const config = PLANNING_COLLECTIONS[collection] || PEOPLE_COLLECTIONS[collection];
+  const config = PLANNING_COLLECTIONS[collection] || PEOPLE_COLLECTIONS[collection] || CARE_COLLECTIONS[collection];
   if (!config) return { response: json({ error: 'Unknown collection' }, { status: 404 }) };
   const roleError = requireRole(authUser, config.minimumRole);
   if (roleError) return { response: roleError };
