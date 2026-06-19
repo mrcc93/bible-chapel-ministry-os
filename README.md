@@ -349,3 +349,33 @@ curl http://127.0.0.1:8788/api/status
 - **Unauthorized role**: API routes return `403 Forbidden` with the current and required role. Add the user to the appropriate Access role environment variable or `AUTH_ROLE_MAP` in Cloudflare Pages settings.
 - **API fallback behavior**: In local Vite development, planning collections may fall back to localStorage when the API is unavailable. In Cloudflare preview or production, treat API failures as deployment/configuration issues and fix Access, D1 bindings, or migrations instead of relying on localStorage.
 - **Sensitive route returns data**: This is a release blocker. Sensitive collections must remain blocked from API migration and localStorage-only until a later approved phase.
+
+## Phase 2C-Prep ministry users and role management
+
+Cloudflare Access remains the authentication provider for `/api/*`. Users sign in with their email through Access; Josh and Molly do **not** need Cloudflare dashboard accounts. The app reads the verified `cf-access-authenticated-user-email` header as identity, never stores passwords, and does not store Cloudflare secrets.
+
+Phase 2C-Prep adds a typed/queryable `ministry_users` D1 table for app-managed roles. It stores email, display name, role, active/inactive status, and timestamps. `/api/status` now prefers an active matching D1 ministry user role. If no active D1 user exists yet, the app falls back to the existing bootstrap environment variables (`ACCESS_ADMIN_EMAILS`, `ACCESS_PASTOR_LEADER_EMAILS`, `ACCESS_VOLUNTEER_EMAILS`, or `AUTH_ROLE_MAP`). Keep those variables only for bootstrap/fallback access and manage roles inside Settings after the first Admin is active in D1.
+
+Initial intended users:
+
+- `clintkubow12@gmail.com` → Admin
+- `jobailey2310@gmail.com` → Pastor/Leader
+- `mollykubow@gmail.com` → Pastor/Leader
+
+After deployment and migration:
+
+1. Keep `clintkubow12@gmail.com` in `ACCESS_ADMIN_EMAILS` long enough for bootstrap Admin access.
+2. Apply the latest D1 migrations, including `0004_phase_2c_ministry_users.sql`.
+3. Sign in as Clint through Cloudflare Access.
+4. Open **Settings → Ministry Users**.
+5. Add Clint as Admin, Josh as Pastor/Leader, and Molly as Pastor/Leader.
+6. Confirm `/api/status` reports `roleSource: "d1_ministry_users"` for those active D1 users.
+7. Leave the environment role variables in place only as emergency bootstrap/fallback configuration.
+
+Role permissions in this prep phase:
+
+- **Admin** can manage ministry users and roles, and can add/edit/remove People records.
+- **Pastor/Leader** cannot manage app users or change roles, but can add/edit/remove People records and is prepared for future care workflows.
+- **Volunteer/View Only** can view allowed data but cannot add/edit/remove People records and cannot manage users.
+
+People records remain local-only in this phase, but the UI permission model is prepared for the upcoming People D1 migration. Visitors, absences, prayers/prayer requests, contacts/pastoral contacts, stats/attendance/giving remain local-only and are not migrated by Phase 2C-Prep. No JSON blob storage is introduced for ministry users or planning data.

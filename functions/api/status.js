@@ -13,7 +13,8 @@ const REQUIRED_PLANNING_TABLES = Object.freeze([
   'service_order_items',
   'service_songs',
   'service_slides',
-  'bulletin_announcements'
+  'bulletin_announcements',
+  'ministry_users'
 ]);
 
 async function checkD1Schema(db) {
@@ -60,7 +61,9 @@ export async function onRequestGet(context) {
       devAuthBypass: Boolean(authUser?.devAuthBypass),
       roleDetected: Boolean(authUser?.role),
       role: authUser?.role || null,
-      roleLabel: authUser?.roleLabel || null
+      roleLabel: authUser?.roleLabel || null,
+      roleSource: authUser?.roleSource || null,
+      ministryUserId: authUser?.ministryUserId || null
     },
     d1,
     planningApi: {
@@ -68,6 +71,11 @@ export async function onRequestGet(context) {
       collections: Object.keys(PLANNING_COLLECTIONS),
       typedTablesOnly: true,
       jsonBlobStorage: false
+    },
+    ministryUsers: {
+      enabled: true,
+      roleSource: authUser?.roleSource || null,
+      managedInApp: true
     },
     sensitiveCollections: {
       blockedFromApiMigration: true,

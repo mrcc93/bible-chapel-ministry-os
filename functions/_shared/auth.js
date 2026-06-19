@@ -83,8 +83,31 @@ function getLocalBypassUser(env = {}) {
   };
 }
 
-export function requireAuth(context) {
-  const user = getAccessUser(context.request, context.env) || getLocalBypassUser(context.env);
+export async function requireAuth(context) {
+  const accessUser = getAccessUser(context.request, context.env);
+  let user = accessUser || getLocalBypassUser(context.env);
+
+  if (accessUser && context.env?.DB) {
+    try {
+      const { findActiveMinistryUserByEmail } = await import('./ministry-users.js');
+      const ministryUser = await findActiveMinistryUserByEmail(context.env.DB, accessUser.email);
+      if (ministryUser) {
+        user = {
+          ...accessUser,
+          email: ministryUser.email,
+          displayName: ministryUser.displayName,
+          role: ministryUser.role,
+          roleLabel: ministryUser.roleLabel,
+          ministryUserId: ministryUser.id,
+          roleSource: 'd1_ministry_users'
+        };
+      } else {
+        user = { ...accessUser, roleSource: 'environment_fallback' };
+      }
+    } catch {
+      user = { ...accessUser, roleSource: 'environment_fallback' };
+    }
+  }
 
   if (!user) {
     return {

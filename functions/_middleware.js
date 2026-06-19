@@ -2,7 +2,7 @@ import { requireAuth } from './_shared/auth.js';
 
 export async function onRequest(context) {
   if (new URL(context.request.url).pathname.startsWith('/api/')) {
-    const auth = requireAuth(context);
+    const auth = await requireAuth(context);
     if (auth.response) return auth.response;
   }
 
