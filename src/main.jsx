@@ -93,7 +93,7 @@ const roadmap = [
 ].map(([month, title, action, goal]) => ({ id: uid(), month, title, action, goal, status: 'Not started' }));
 
 const blankServiceOrder = [
-  'Welcome & announcements', 'Opening hymn', 'Scripture reading', 'Prayer', 'Worship set', 'Sermon', 'Response / altar prayer', 'Benediction'
+  'Welcome', 'Opening Prayer', 'Worship / Hymn', 'Scripture Reading', 'Announcements', 'Offering', 'Sermon', 'Response / Closing Song', 'Benediction'
 ].map(label => ({ id: uid(), label, note: '' }));
 
 const cloneServiceOrder = () => blankServiceOrder.map(item => ({ ...item, id: uid() }));
@@ -123,7 +123,7 @@ const buildServiceFromSermon = (sermon, existing = {}) => {
   const bigIdea = sermonBigIdea(sermon);
   const sermonNote = [sermon.title, passage].filter(Boolean).join(' · ');
   const baseOrder = existing.order?.length ? existing.order : cloneServiceOrder();
-  const order = baseOrder.map(item => item.label === 'Scripture reading' && !item.note ? { ...item, note: passage } : item.label === 'Sermon' && !item.note ? { ...item, note: sermonNote } : item);
+  const order = baseOrder.map(item => item.label === 'Scripture Reading' && !item.note ? { ...item, note: passage } : item.label === 'Sermon' && !item.note ? { ...item, note: sermonNote } : item);
   const sermonSlides = [
     { id: uid(), type: 'Title', title: sermon.title, body: [sermon.seriesTitle, passage].filter(Boolean).join('\n') },
     passage ? { id: uid(), type: 'Scripture', title: passage, body: '' } : null,
@@ -260,7 +260,7 @@ function Field({ label, children }) { return <label className="field"><span>{lab
 function Input(props) { return <input className="input" {...props}/>; }
 function Textarea(props) { return <textarea className="input textarea" {...props}/>; }
 function Select(props) { return <select className="input" {...props}/>; }
-function Empty({ title, text }) { return <div className="empty"><h3>{title}</h3><p>{text}</p></div>; }
+function Empty({ title, text, action }) { return <div className="empty"><h3>{title}</h3><p>{text}</p>{action && <div className="empty-action">{action}</div>}</div>; }
 function StatusPill({ children, tone = 'neutral' }) { return <span className={`pill ${tone}`}>{children}</span>; }
 function DataStatusCard({ apiStatus, planningApiReady, planningApiError, planningLoading }) {
   const statusLoading = apiStatus?.loading;
@@ -277,40 +277,55 @@ function DataStateNotice({ status, empty, emptyTitle = 'No planning records yet'
   return null;
 }
 
-function Dashboard({ settings, stats, events, services, visitors, prayers, contacts, absences, tasks, goals, plan, setView, apiStatus }) {
+const firstSundaySteps = [
+  'Confirm Ministry Users: Clint Admin, Josh Pastor/Leader, Molly Pastor/Leader',
+  'Add Bible Chapel starter content', 'Add first sermon series', 'Add this Sunday’s sermon', 'Plan Sunday service', 'Create bulletin', 'Add any announcements', 'Add first People records if desired', 'Test visitor follow-up workflow', 'Add first attendance/stat record after Sunday', 'Review Dashboard after Sunday', 'Schedule Tuesday follow-up review'
+];
+function firstSundayChecklist(tasks = []) { return firstSundaySteps.map(title => tasks.find(t => t.setupKey === title) || { id: title, title, lane: 'First Sunday Setup', day: 'Tuesday', due: nextSundayISO(), done: false, setupKey: title }); }
+function SetupChecklist({ tasks, setTasks }) { const items = firstSundayChecklist(tasks); const toggle = item => setTasks(rows => rows.some(t => t.setupKey === item.setupKey) ? rows.map(t => t.setupKey === item.setupKey ? { ...t, done: !t.done } : t) : [{ ...item, id: uid(), done: true }, ...rows]); return <div className="setup-list">{items.map(item => <label key={item.setupKey} className={`check-card ${item.done ? 'on' : ''}`}><input type="checkbox" checked={Boolean(item.done)} onChange={() => toggle(item)}/><span>{item.title}</span></label>)}</div>; }
+function addUnique(rows, item, key = 'title') { return rows.some(row => normalizeName(row[key]) === normalizeName(item[key])) ? rows : [...rows, { ...item, id: uid() }]; }
+function addBibleChapelStarterContent({ setRhythm, setTasks, setEvents, setSeries, setBulletin, setPlan, flash }) {
+  setRhythm(() => starterRhythm.map(r => ({ ...r, id: uid() })));
+  setEvents(rows => sortDateAsc(addUnique(addUnique(rows, { title: 'Sunday Worship', date: nextSundayISO(), time: '9:30 AM', type: 'Service', owner: 'Bible Chapel', notes: 'Weekly worship gathering in Robinson, Illinois.' }), { title: 'Wednesday Bible Study', date: todayISO(), time: '6:00 PM', type: 'Meeting', owner: 'Bible Chapel', notes: 'Midweek Bible study and ministry night.' })));
+  setSeries(rows => addUnique(rows, { title: 'A New Chapter at Bible Chapel', startDate: nextSundayISO(), scripture: '', theme: 'We are not changing because the past was bad. We are changing because the mission is still alive.', sermons: [] }));
+  setPlan(rows => rows.length ? rows : roadmap.map(r => ({ ...r, id: uid() })));
+  setBulletin(b => ({ ...b, welcome: b.welcome || 'Welcome to Bible Chapel. We are glad you are here.', announcements: [...(b.announcements || []), ...['Wednesday Bible Study — Wednesdays at 6:00 p.m.', 'Chapel Night placeholder — details coming soon.', 'Dinner at the Schoolhouse placeholder — details coming soon.', 'Prayer gathering placeholder — details coming soon.'].filter(text => !(b.announcements || []).some(a => a.text === text)).map(text => ({ id: uid(), text }))] }));
+  setTasks(rows => firstSundaySteps.reduce((acc, title) => acc.some(t => t.setupKey === title) ? acc : [{ id: uid(), title, day: 'Tuesday', lane: 'First Sunday Setup', due: nextSundayISO(), done: false, setupKey: title }, ...acc], rows));
+  flash?.('Bible Chapel starter content added without creating people or sensitive records.');
+}
+function Dashboard({ settings, stats, events, services, visitors, prayers, contacts, absences, tasks, goals, plan, series, bulletin, setView, apiStatus, setTasks, setRhythm, setEvents, setSeries, setBulletin, setPlan, flash }) {
   const latest = sortDateDesc(stats)[0];
   const attendance = latest ? Number(latest.adults || latest.attendanceCount || 0) + Number(latest.kids || 0) + Number(latest.online || 0) : 0;
   const admin = isAdmin(apiStatus?.auth);
+  const leader = canManageCare(apiStatus?.auth);
   const upcomingEvents = sortDateAsc(events.filter(e => e.date >= todayISO())).slice(0, 4);
   const openTasks = tasks.filter(t => !t.done).slice(0, 6);
-  const activePrayers = prayers.filter(p => p.status !== 'Answered').length;
-  const newVisitors = visitors.filter(v => v.status !== 'Joined').length;
+  const activePrayers = leader ? prayers.filter(p => p.status !== 'Answered').length : '—';
+  const newVisitors = leader ? visitors.filter(v => v.status !== 'Joined' && v.status !== 'Returned').length : '—';
+  const recentAbsences = leader ? sortDateDesc(absences).slice(0, 3) : [];
+  const recentContacts = leader ? sortDateDesc(contacts).slice(0, 3) : [];
   const nextService = sortDateAsc(services.filter(s => s.date >= todayISO()))[0] || sortDateDesc(services)[0];
+  const nextSermon = flattenSermons(series).find(s => s.date >= todayISO());
   const currentRoadmap = plan.find(p => p.status !== 'Done') || plan[0];
-  return <Page eyebrow="Command Center" title="Good to see you" description={`${settings.theme} — a simple place to run the week, plan the month, and keep the mission in front of you.`}>
+  const setupItems = firstSundayChecklist(tasks);
+  const setupDone = setupItems.filter(i => i.done).length;
+  return <Page eyebrow="Ministry Command Center" title="Welcome to Bible Chapel" description={`${settings.theme} — Sunday at 9:30 a.m. in Robinson, Illinois. We are not changing because the past was bad. We are changing because the mission is still alive.`}>
+    <div className="quick-actions"><Button variant="primary" icon={BookOpen} onClick={() => setView('sunday')}>Plan Sunday</Button><Button icon={Plus} onClick={() => setView('care')}>Add visitor</Button><Button icon={HeartHandshake} onClick={() => setView('care')}>Add prayer request</Button><Button icon={Mail} onClick={() => setView('bulletin')}>Create bulletin</Button><Button icon={Map} onClick={() => setView('planning')}>View roadmap</Button></div>
     <div className="stat-grid">
-      <Metric label="Last attendance" value={latest ? attendance : '—'} meta={latest ? fmtDate(latest.date) : 'No Sundays logged'}/>
-      <Metric label={admin ? "Last offering" : "Attendance trend"} value={admin && latest ? money(latest.offering) : stats.length ? `${stats.length} weeks` : '—'} meta={admin ? "Most recent Sunday" : "Giving hidden by role"}/>
-      <Metric label="Open visitor follow-up" value={newVisitors || '—'} meta="Needs attention"/>
-      <Metric label="Active prayer requests" value={activePrayers || '—'} meta="Currently ongoing"/>
+      <Metric label="Next Sunday" value={nextService ? 'Planned' : '9:30 a.m.'} meta={nextService ? `${fmtDate(nextService.date)} · ${nextService.title}` : 'Create this Sunday’s service plan'}/>
+      <Metric label="Next message" value={nextSermon ? nextSermon.title : '—'} meta={nextSermon ? `${nextSermon.seriesTitle || 'Sermon'} · ${fmtDate(nextSermon.date)}` : 'Add a sermon in Planning'}/>
+      <Metric label="Visitors to follow up" value={newVisitors} meta={leader ? 'Guests not marked returned/joined' : 'Limited by role'}/>
+      <Metric label="Open prayer requests" value={activePrayers} meta={leader ? 'Ongoing care list' : 'Limited by role'}/>
     </div>
     <div className="grid two">
-      <Card title="This week" subtitle="Sunday readiness and current work" actions={<Button icon={ClipboardList} onClick={() => setView('rhythm')}>Open rhythm</Button>}>
-        {openTasks.length ? <div className="list">{openTasks.map(t => <TaskRow key={t.id} task={t} readonly/>)}</div> : <Empty title="No open tasks" text="Add work from the Weekly Rhythm page so nothing lives only in your head."/>}
-      </Card>
-      <Card title="This Sunday" subtitle={nextService ? fmtDate(nextService.date, { weekday: 'long', month: 'long', day: 'numeric' }) : 'No service planned'} actions={<Button icon={BookOpen} onClick={() => setView('sunday')}>Plan service</Button>}>
-        {nextService ? <OrderPreview service={nextService}/> : <Empty title="No service yet" text="Create this Sunday's order, songs, slides, and notes."/>}
-      </Card>
-      <Card title="Next 30 days" subtitle="Events and ministry pushes" actions={<Button icon={CalendarDays} onClick={() => setView('planning')}>Open planning</Button>}>
-        {upcomingEvents.length ? <div className="list compact">{upcomingEvents.map(e => <InfoRow key={e.id} title={e.title} meta={`${fmtDate(e.date)}${e.time ? ` · ${e.time}` : ''}${e.owner ? ` · ${e.owner}` : ''}`}/>)}</div> : <Empty title="Nothing scheduled" text="Add Chapel Night, Schoolhouse dinners, invite Sundays, meetings, and outreach moments."/>}
-      </Card>
-      <Card title="Roadmap focus" subtitle="What stage are we building right now?">
-        {currentRoadmap ? <div className="roadmap-focus"><StatusPill tone="gold">{currentRoadmap.month}</StatusPill><h3>{currentRoadmap.title}</h3><p>{currentRoadmap.action}</p><small>Goal: {currentRoadmap.goal}</small></div> : <Empty title="Roadmap complete" text="Celebrate and write the next chapter."/>}
-      </Card>
+      <Card title="First Sunday Setup" subtitle={`${setupDone} of ${setupItems.length} steps complete`} actions={admin && <Button icon={Plus} onClick={() => addBibleChapelStarterContent({ setRhythm, setTasks, setEvents, setSeries, setBulletin, setPlan, flash })}>Add Bible Chapel Starter Content</Button>}><SetupChecklist tasks={tasks} setTasks={setTasks}/></Card>
+      <Card title="This Sunday" subtitle={nextService ? fmtDate(nextService.date, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Sunday Worship — 9:30 a.m.'} actions={<Button icon={BookOpen} onClick={() => setView('sunday')}>Plan Sunday</Button>}>{nextService ? <OrderPreview service={nextService}/> : <Empty title="Prepare Sunday before Sunday." text="Build the order of service, connect the sermon, and make sure the gathering is ready." action={<Button variant="primary" onClick={() => setView('sunday')}>Plan Sunday</Button>}/>}</Card>
+      <Card title="Care follow-up" subtitle="Visitors, absences, prayer, and contacts without exposing details to limited roles.">{leader ? <div className="list compact"><InfoRow title="Visitors needing follow-up" meta={`${newVisitors} open`}/><InfoRow title="Recent absences" meta={recentAbsences.length ? recentAbsences.map(a => a.personName || a.name || 'Someone').join(', ') : 'Nothing here yet.'}/><InfoRow title="Recent pastoral contacts" meta={recentContacts.length ? `${recentContacts.length} recent notes` : 'Nothing here yet.'}/></div> : <Empty title="Limited care view" text="Volunteer/View Only users do not see sensitive prayer and care details."/>}</Card>
+      <Card title="Attendance trend" subtitle="Watch ministry health over time.">{latest ? <><Metric label="Last attendance" value={attendance} meta={fmtDate(latest.date)}/>{admin && <p className="muted">Last offering: {money(latest.offering)}</p>}</> : <Empty title="Start tracking ministry health." text="Add weekly attendance and ministry notes after Sunday to watch trends over time." action={<Button onClick={() => setView('stats')}>Log attendance</Button>}/>}</Card>
+      <Card title="This week" subtitle="Upcoming rhythm and ministry tasks" actions={<Button icon={ClipboardList} onClick={() => setView('rhythm')}>Open rhythm</Button>}>{openTasks.length ? <div className="list">{openTasks.map(t => <TaskRow key={t.id} task={t} readonly/>)}</div> : <Empty title="Nothing here yet." text="Add Tuesday follow-up, Sunday prep, and communication tasks so the week has a home."/>}</Card>
+      <Card title="Roadmap focus" subtitle="A New Chapter at Bible Chapel" actions={<Button icon={Map} onClick={() => setView('planning')}>View roadmap</Button>}>{currentRoadmap ? <div className="roadmap-focus"><StatusPill tone="gold">{currentRoadmap.month}</StatusPill><h3>{currentRoadmap.title}</h3><p>{currentRoadmap.action}</p><small>Goal: {currentRoadmap.goal}</small></div> : <Empty title="Keep the revitalization plan visible." text="Track progress toward the next chapter at Bible Chapel."/>}</Card>
     </div>
-    <Card title="Goals" subtitle="Keep the scoreboard visible.">
-      <div className="goal-grid">{goals.map(g => <GoalBar key={g.id} goal={g}/>)}</div>
-    </Card>
+    <Card title="Goals" subtitle="Keep the scoreboard visible without making numbers the mission."><div className="goal-grid">{goals.map(g => <GoalBar key={g.id} goal={g}/>)}</div></Card>
   </Page>;
 }
 function Metric({ label, value, meta }) { return <div className="metric"><span>{label}</span><strong>{value}</strong><p>{meta}</p></div>; }
@@ -419,13 +434,13 @@ function Sunday({ services, setServices, series, settings, flash, dataStatus }) 
     setServices(rows => [svc, ...rows]);
     setActiveId(svc.id);
   };
-  const createService = () => { const svc = { id: uid(), date: nextSundayISO(), title: 'Sunday Service', order: cloneServiceOrder(), songs: [], slides: [] }; setServices(rows => [svc, ...rows]); setActiveId(svc.id); };
+  const createService = () => { const svc = { id: uid(), date: nextSundayISO(), time: '9:30 AM', title: 'Sunday Worship', order: cloneServiceOrder(), songs: [], slides: [] }; setServices(rows => [svc, ...rows]); setActiveId(svc.id); };
   const update = patch => setServices(rows => rows.map(s => s.id === active.id ? { ...s, ...patch } : s));
   return <Page eyebrow="Sunday" title="Service planner" description="Plan the order, songs, sermon notes, slides, and export a simple PowerPoint.">
     <DataStateNotice status={dataStatus?.services?.loading ? dataStatus.services : dataStatus?.series} empty={!services.length && !upcomingMessages.length} emptyTitle="No services or upcoming messages" emptyText="Create a service or add dated sermons in Planning → Sermon Series."/>
     <div className="toolbar"><Button variant="primary" icon={Plus} onClick={createService}>New service</Button>{services.length > 0 && <Select value={active?.id || ''} onChange={e => setActiveId(e.target.value)}>{services.map(s => <option key={s.id} value={s.id}>{fmtDate(s.date)} — {s.title}</option>)}</Select>}</div>
     <Card title="Upcoming messages" subtitle="Sermons planned in Planning → Sermon Series flow into Sunday here.">{upcomingMessages.length ? <div className="list compact">{upcomingMessages.map(sermon => { const existing = serviceByDate[sermon.date]; return <div className="info-row" key={sermon.id}><div><strong>{sermon.title}</strong><p>{fmtDate(sermon.date)} · {sermon.seriesTitle || 'No series'} · {sermonPassage(sermon) || 'No passage'}</p>{sermonBigIdea(sermon) && <small>{sermonBigIdea(sermon)}</small>}</div><Button icon={BookOpen} onClick={() => planFromSermon(sermon)}>{existing ? 'Open service' : 'Plan service'}</Button></div>; })}</div> : <Empty title="No upcoming messages" text="Add dated sermons in Planning → Sermon Series to plan or open Sunday services from them."/>}</Card>
-    {!active ? <Card><Empty title="No service yet" text="Create a service for this Sunday or plan one from an upcoming message."/></Card> : <div className="grid two"><Card title="Service details"><div className="form-grid two"><Field label="Title"><Input value={active.title} onChange={e => update({ title: e.target.value })}/></Field><Field label="Date"><Input type="date" value={active.date} onChange={e => update({ date: e.target.value })}/></Field><Field label="Scripture / passage"><Input value={active.scripture || ''} onChange={e => update({ scripture: e.target.value })}/></Field><Field label="Series"><Input value={active.seriesTitle || ''} onChange={e => update({ seriesTitle: e.target.value })}/></Field></div><Field label="Big idea / theme"><Input value={active.theme || ''} onChange={e => update({ theme: e.target.value })}/></Field>{active.sermonTitle && <p className="muted">Connected message: {active.sermonTitle}</p>}</Card><OrderEditor service={active} update={update}/><SongsEditor service={active} update={update}/><SlidesEditor service={active} update={update} settings={settings} flash={flash}/></div>}
+    {!active ? <Card><Empty title="No service yet" text="Create a service for this Sunday or plan one from an upcoming message."/></Card> : <div className="grid two"><Card title="Service details"><div className="form-grid two"><Field label="Title"><Input value={active.title} onChange={e => update({ title: e.target.value })}/></Field><Field label="Date"><Input type="date" value={active.date} onChange={e => update({ date: e.target.value })}/></Field><Field label="Time"><Input value={active.time || '9:30 AM'} onChange={e => update({ time: e.target.value })}/></Field><Field label="Scripture / passage"><Input value={active.scripture || ''} onChange={e => update({ scripture: e.target.value })}/></Field><Field label="Series"><Input value={active.seriesTitle || ''} onChange={e => update({ seriesTitle: e.target.value })}/></Field></div><Field label="Big idea / theme"><Input value={active.theme || ''} onChange={e => update({ theme: e.target.value })}/></Field>{active.sermonTitle && <p className="muted">Connected message: {active.sermonTitle}. This sermon is already linked to this service.</p>}<Button icon={Mail} onClick={() => flash?.('Open Bulletin to add this service’s announcements and export the weekly bulletin.')}>Next: create bulletin</Button></Card><OrderEditor service={active} update={update}/><SongsEditor service={active} update={update}/><SlidesEditor service={active} update={update} settings={settings} flash={flash}/></div>}
   </Page>;
 }
 function OrderPreview({ service }) { return <div className="order-preview">{service.order?.slice(0, 7).map((o, i) => <p key={o.id}><span>{i + 1}</span>{o.label}{o.note ? <small> — {o.note}</small> : null}</p>)}</div>; }
@@ -457,9 +472,10 @@ function Care({ people, setPeople, absences, setAbsences, visitors, setVisitors,
   return <Page eyebrow="Care" title="Watch over the flock" description="Guest follow-up, absence tracking, prayer, people, and pastoral contacts in one place."><Tabs active={tab} setActive={setTab} items={[["visitors","Visitors"],["people","People"],["absences","Absences"],["prayer","Prayer"],["contacts","Contacts"]]}/>{tab === 'visitors' && <Visitors visitors={visitors} setVisitors={setVisitors} people={people} setPeople={setPeople} contacts={contacts} setContacts={setContacts} auth={apiStatus?.auth} status={dataStatus?.visitors}/>} {tab === 'people' && <People people={people} setPeople={setPeople} auth={apiStatus?.auth} status={dataStatus?.people}/>} {tab === 'absences' && <AbsenceTracker people={people} absences={absences} setAbsences={setAbsences} auth={apiStatus?.auth} status={dataStatus?.absences}/>} {tab === 'prayer' && <Prayers prayers={prayers} setPrayers={setPrayers} people={people} auth={apiStatus?.auth} status={dataStatus?.prayers}/>} {tab === 'contacts' && <ContactLog contacts={contacts} setContacts={setContacts} people={people} visitors={visitors} auth={apiStatus?.auth} status={dataStatus?.contacts}/>}</Page>;
 }
 function findPersonByName(people, name) { return people.find(p => normalizeName(p.name) === normalizeName(name)); }
+const careEmptyCopy = { visitors: { title: 'Track first-time guests and follow-up.', text: 'Add visitors from Sunday so no one slips through the cracks.' }, 'prayer requests': { title: 'Keep prayer requests cared for.', text: 'Track what people ask you to pray for and follow up when needed.' }, absences: { title: 'Notice when people are missing.', text: 'Record absences so leaders can check in with care.' }, 'pastoral contacts': { title: 'Remember care conversations.', text: 'Log follow-ups, visits, calls, and important ministry conversations.' } };
 function CareState({ status, allowed, label, empty }) {
   if (!allowed) return <div className="state-banner">Volunteer/View Only access cannot view or manage sensitive {label} data.</div>;
-  return <DataStateNotice status={status} empty={empty} label={label} emptyTitle={`No ${label} records yet`} emptyText={`Create or import ${label} records once D1/API is connected.`}/>;
+  return <DataStateNotice status={status} empty={empty} label={label} emptyTitle={careEmptyCopy[label]?.title || 'Nothing here yet.'} emptyText={careEmptyCopy[label]?.text || `Create or import ${label} records once D1/API is connected.`}/>;
 }
 function importLocalRows(storageKey, rows, setRows, isDuplicate) {
   try {
@@ -510,7 +526,7 @@ function People({ people, setPeople, auth, status }) {
       });
     } catch {}
   };
-  return <Card title="People list" subtitle="D1/API-backed. Admin and Pastor/Leader can add, edit, and remove People records.">{status?.loading && <div className="state-banner">Loading D1-backed People Directory…</div>}{status?.error && <div className="state-banner error"><strong>People API unavailable.</strong> {status.localDevFallback ? 'Using local dev/offline People data for this browser.' : 'Production People data did not load; check Cloudflare Access and D1 before continuing.'} <span>{status.error}</span></div>}{!allowed && <div className="state-banner">Volunteer/View Only access cannot view or manage sensitive People Directory details.</div>}<div className="form-grid three"><Field label="Name"><Input disabled={!allowed} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Name"/></Field><Field label="Phone"><Input disabled={!allowed} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="Phone"/></Field><Field label="Email"><Input disabled={!allowed} type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Email"/></Field></div><Button icon={Plus} variant="primary" onClick={add} disabled={!allowed || status?.loading}>Add person</Button>{allowed && <Button onClick={importLocalPeople} disabled={status?.loading}>Import local People</Button>}<div className="list compact">{people.length ? people.map(p => <div className="info-row" key={p.id}><div className="form-grid three"><Field label="Name"><Input disabled={!allowed} value={p.name || ''} onChange={e => updatePerson(p.id, { name: e.target.value })}/></Field><Field label="Phone"><Input disabled={!allowed} value={p.phone || ''} onChange={e => updatePerson(p.id, { phone: e.target.value })}/></Field><Field label="Email"><Input disabled={!allowed} type="email" value={p.email || ''} onChange={e => updatePerson(p.id, { email: e.target.value })}/></Field><p className="muted">{contactSummary(p) || 'Part of the church family'}{p.source ? ` · ${p.source}` : ''}{p.firstVisited ? ` · first visited ${fmtDate(p.firstVisited)}` : ''}</p></div>{allowed && <button className="icon-button danger" onClick={() => setPeople(rows => rows.filter(x => x.id !== p.id))}><Trash2 size={16}/></button>}</div>) : <Empty title="No people yet" text="Add regular attenders or import existing local People records."/>}</div></Card>;
+  return <Card title="People list" subtitle="D1/API-backed. Admin and Pastor/Leader can add, edit, and remove People records.">{status?.loading && <div className="state-banner">Loading D1-backed People Directory…</div>}{status?.error && <div className="state-banner error"><strong>People API unavailable.</strong> {status.localDevFallback ? 'Using local dev/offline People data for this browser.' : 'Production People data did not load; check Cloudflare Access and D1 before continuing.'} <span>{status.error}</span></div>}{!allowed && <div className="state-banner">Volunteer/View Only access cannot view or manage sensitive People Directory details.</div>}<div className="form-grid three"><Field label="Name"><Input disabled={!allowed} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Name"/></Field><Field label="Phone"><Input disabled={!allowed} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="Phone"/></Field><Field label="Email"><Input disabled={!allowed} type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Email"/></Field></div><Button icon={Plus} variant="primary" onClick={add} disabled={!allowed || status?.loading}>Add person</Button>{allowed && <Button onClick={importLocalPeople} disabled={status?.loading}>Import local People</Button>}<div className="list compact">{people.length ? people.map(p => <div className="info-row" key={p.id}><div className="form-grid three"><Field label="Name"><Input disabled={!allowed} value={p.name || ''} onChange={e => updatePerson(p.id, { name: e.target.value })}/></Field><Field label="Phone"><Input disabled={!allowed} value={p.phone || ''} onChange={e => updatePerson(p.id, { phone: e.target.value })}/></Field><Field label="Email"><Input disabled={!allowed} type="email" value={p.email || ''} onChange={e => updatePerson(p.id, { email: e.target.value })}/></Field><p className="muted">{contactSummary(p) || 'Part of the church family'}{p.source ? ` · ${p.source}` : ''}{p.firstVisited ? ` · first visited ${fmtDate(p.firstVisited)}` : ''}</p></div>{allowed && <button className="icon-button danger" onClick={() => setPeople(rows => rows.filter(x => x.id !== p.id))}><Trash2 size={16}/></button>}</div>) : <Empty title="Start your church directory." text="Add members, regular attenders, and people you want to care for well." action={<Button variant="primary" icon={Plus} onClick={add} disabled={!allowed}>Add person</Button>}/>}</div></Card>;
 }
 function AbsenceTracker({ people, absences, setAbsences, auth, status }) {
   const allowed = canManageCare(auth);

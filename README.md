@@ -83,3 +83,93 @@ For local Pages Functions testing, configure a local D1 database and a non-produ
 - Giving: Admin sees and writes giving; Pastor/Leader and Volunteer/View Only do not see giving values.
 - Dashboard: shows attendance trend, upcoming services/events, visitor follow-up, open prayers, roadmap/goals, and role-safe ministry health information.
 - Role checks: verify Admin, Pastor/Leader, and Volunteer/View Only behavior server-side and in the UI.
+
+## Phase 3A usability polish
+
+Phase 3A moves Ministry OS from a technically working D1-backed app toward a weekly ministry tool for Bible Chapel in Robinson, Illinois.
+
+### What changed
+
+- The Dashboard is now a ministry command center with Sunday readiness, next sermon, visitor follow-up, prayer/care counts, recent absence/contact signals, attendance trends, weekly rhythm tasks, roadmap focus, and First Sunday Setup progress.
+- Empty states use warmer ministry language such as “Nothing here yet,” “Start your church directory,” and “Prepare Sunday before Sunday.”
+- Mobile and tablet layouts were tightened so dashboard cards, forms, actions, lists, and service-order rows wrap more cleanly without horizontal scrolling.
+- Sunday service planning defaults to Bible Chapel’s Sunday Worship at 9:30 a.m. and uses a practical service order template: Welcome, Opening Prayer, Worship / Hymn, Scripture Reading, Announcements, Offering, Sermon, Response / Closing Song, and Benediction.
+- Sermon Series remains the starting point for dated sermons, and the Sunday screen clearly opens or creates the connected Sunday service.
+- Bulletin flow is clearer, with a Sunday next-step prompt and PDF/copy actions remaining available from the Bulletin screen.
+
+### Optional Bible Chapel starter content
+
+Admins can use **Add Bible Chapel Starter Content** from the Dashboard First Sunday Setup card. The action is intentionally safe and optional:
+
+- Adds or restores the weekly rhythm template.
+- Adds safe calendar templates for Sunday Worship at 9:30 a.m. and Wednesday Bible Study at 6:00 p.m.
+- Adds the starter sermon series idea **A New Chapter at Bible Chapel**.
+- Adds non-sensitive bulletin announcement placeholders.
+- Adds First Sunday Setup checklist tasks.
+- Ensures starter items are not duplicated when the button is clicked again.
+- Does **not** create real people, visitors, prayer requests, absences, pastoral contacts, attendance, giving, or any other sensitive records.
+
+### First Sunday Setup guide
+
+The Dashboard includes a First Sunday Setup checklist to help Clint, Josh, and Molly prepare for the first real Sunday:
+
+1. Confirm Ministry Users: Clint Admin, Josh Pastor/Leader, Molly Pastor/Leader
+2. Add Bible Chapel starter content
+3. Add first sermon series
+4. Add this Sunday’s sermon
+5. Plan Sunday service
+6. Create bulletin
+7. Add any announcements
+8. Add first People records if desired
+9. Test visitor follow-up workflow
+10. Add first attendance/stat record after Sunday
+11. Review Dashboard after Sunday
+12. Schedule Tuesday follow-up review
+
+Checklist state is stored through the existing D1/API-backed tasks collection, avoiding a new database subsystem.
+
+### Current role permissions
+
+- **Admin**: full app access, Ministry Users management, sensitive ministry tools, attendance/stat entry, and giving/financial fields where present.
+- **Pastor/Leader**: ministry tools for planning, people, visitors, prayer requests, absences, pastoral contacts, Sunday services, bulletins, and stats, but no Ministry Users role management and no Admin-only giving summaries.
+- **Volunteer/View Only**: limited safe view. Sensitive people, prayer, visitor, absence, and pastoral contact details remain hidden.
+
+### Current D1-backed collections
+
+The app continues to use D1/API-backed typed collections for planning and ministry data:
+
+- Weekly rhythm
+- Tasks / First Sunday Setup checklist
+- Ministry events
+- Annual priorities
+- Roadmap items
+- Goals
+- Sermon series
+- Services and service order items
+- Bulletin announcements
+- People Directory
+- Visitors
+- Prayer requests
+- Volunteer absences
+- Pastoral contacts
+- Stats / attendance
+- Ministry Users / roles
+
+No JSON blob storage is introduced by Phase 3A.
+
+### Manual QA checklist
+
+- Dashboard loads and shows Sunday readiness, setup progress, care counts, attendance trends, tasks, and roadmap focus.
+- Empty states appear with warm ministry language when sections have no records.
+- Mobile layout stacks dashboard cards, forms, action buttons, and service order rows cleanly.
+- Admin can add Bible Chapel starter content once without duplicate starter entries.
+- Sermon Series can create dated sermons and Sunday can create/open the matching service.
+- Sunday Service supports service details, order builder, songs, slides, and clear bulletin next step.
+- Bulletin supports announcements, preview, copy, and PDF export.
+- First Sunday Setup checklist can be checked and unchecked.
+- Admin can use all tools and manage Ministry Users.
+- Pastor/Leader can use ministry tools but cannot manage roles or see Admin-only giving summaries.
+- Volunteer/View Only remains limited and cannot see sensitive care details.
+- `/api/status` reports `migrationsApplied: true` and `missingTables: []` in production.
+- Existing D1 data remains intact.
+- No secrets are committed.
