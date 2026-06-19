@@ -28,13 +28,13 @@ The app is still intentionally preserving the existing browser-based workflow in
 Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 Start Vite:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Open the local URL Vite prints, usually `http://localhost:5173`.
@@ -44,13 +44,13 @@ Open the local URL Vite prints, usually `http://localhost:5173`.
 Create a production build:
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 Preview the built app locally:
 
 ```bash
-npm run preview
+pnpm run preview
 ```
 
 ## Cloudflare Pages setup
@@ -58,7 +58,7 @@ npm run preview
 1. Create a Cloudflare Pages project connected to this repository.
 2. Use these build settings:
    - Framework preset: `Vite`
-   - Build command: `npm run build`
+   - Build command: `pnpm install --frozen-lockfile && pnpm run build`
    - Build output directory: `dist`
 3. Keep the existing UI as the static Pages app.
 4. Deploy the `functions/` directory with Pages Functions enabled so `/api/*` routes can later access D1.
@@ -182,7 +182,7 @@ For local development only, `DEV_AUTH_BYPASS=1` can provide a fake authenticated
 
 Manual check for the Phase 2B sermon/Sunday data flow:
 
-1. Run the app locally with `npm run dev -- --host 127.0.0.1`.
+1. Run the app locally with `pnpm run dev -- --host 127.0.0.1`.
 2. Open **Planning → Sermon Series**.
 3. Create a sermon series with a title, start date, scripture, and theme.
 4. Add a sermon inside that series with a sermon date, title, passage, and big idea.
@@ -269,7 +269,7 @@ Do not migrate these collections until a later phase with explicit approval:
    - Use the branch you want to test, normally `main` for production and a PR/preview branch for preview.
 2. **Configure build settings**
    - Framework preset: `Vite`
-   - Build command: `npm run build`
+   - Build command: `pnpm install --frozen-lockfile && pnpm run build`
    - Build output directory: `dist`
    - The checked-in `wrangler.toml` also declares `pages_build_output_dir = "dist"`.
 3. **Create or connect D1**
@@ -323,7 +323,7 @@ Do not migrate these collections until a later phase with explicit approval:
 Use Vite for UI-only development:
 
 ```bash
-npm run dev -- --host 127.0.0.1
+pnpm run dev -- --host 127.0.0.1
 ```
 
 Use Wrangler when you need Pages Functions and D1 locally:
@@ -335,7 +335,7 @@ DEV_AUTH_BYPASS=1 DEV_AUTH_ROLE=admin npx wrangler pages dev dist --d1 DB=bible-
 A typical local API verification flow is:
 
 ```bash
-npm run build
+pnpm run build
 npx wrangler d1 migrations apply bible-chapel-ministry-os --local
 DEV_AUTH_BYPASS=1 DEV_AUTH_ROLE=admin npx wrangler pages dev dist --d1 DB=bible-chapel-ministry-os
 curl http://127.0.0.1:8788/api/status
