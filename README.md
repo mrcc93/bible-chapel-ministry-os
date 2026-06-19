@@ -93,7 +93,7 @@ Phase 3A moves Ministry OS from a technically working D1-backed app toward a wee
 - The Dashboard is now a ministry command center with rotating friendly greetings, Sunday readiness, next sermon, visitor follow-up, prayer/care counts, recent absence/contact signals, attendance trends, weekly rhythm tasks, and roadmap focus.
 - Empty states use warmer ministry language such as “Nothing here yet,” “Start your church directory,” and “Prepare Sunday before Sunday.”
 - Mobile and tablet layouts were tightened so dashboard cards, forms, actions, lists, and service-order rows wrap more cleanly without horizontal scrolling.
-- Sunday service planning defaults to Bible Chapel’s Sunday Worship at 9:30 a.m. and uses a practical service order template: Welcome, Opening Prayer, Worship / Hymn, Scripture Reading, Announcements, Offering, Sermon, Response / Closing Song, and Benediction.
+- Sunday service planning defaults to Bible Chapel’s Sunday Worship at 10:30 a.m. and uses a practical service order template: Welcome, Opening Prayer, Worship / Hymn, Scripture Reading, Announcements, Offering, Sermon, Response / Closing Song, and Benediction.
 - Sermon Series remains the starting point for dated sermons, and the Sunday screen clearly opens or creates the connected Sunday service.
 - Bulletin flow is clearer, with a Sunday next-step prompt and PDF/copy actions remaining available from the Bulletin screen.
 
@@ -102,9 +102,9 @@ Phase 3A moves Ministry OS from a technically working D1-backed app toward a wee
 Admins can use **Add Bible Chapel Starter Content** from Settings. The action is intentionally safe and optional:
 
 - Adds or restores the weekly rhythm template.
-- Adds safe calendar templates for Sunday Worship at 9:30 a.m. and Wednesday Bible Study at 6:00 p.m.
+- Adds safe calendar templates for Sunday Worship at 10:30 a.m. and Wednesday Bible Study at 6:00 p.m.
 - Adds the starter sermon series idea **A New Chapter at Bible Chapel**.
-- Adds non-sensitive bulletin announcement placeholders.
+- Adds non-sensitive bulletin announcement placeholders, including Sunday Worship at 10:30 a.m.
 - Adds First Sunday Setup task examples for teams that still want the optional starter workflow.
 - Ensures starter items are not duplicated when the button is clicked again.
 - Does **not** create real people, visitors, prayer requests, absences, pastoral contacts, attendance, giving, or any other sensitive records.

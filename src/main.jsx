@@ -215,7 +215,7 @@ function App() {
   const [prayers, setPrayers, prayersStatus] = useLocalStorage('prayers', []);
   const [contacts, setContacts, contactsStatus] = useLocalStorage('contacts', []);
   const [series, setSeries, seriesStatus] = useLocalStorage('series', []);
-  const [bulletin, setBulletin, bulletinStatus] = useLocalStorage('bulletin', { announcements: [] });
+  const [bulletin, setBulletin, bulletinStatus] = useLocalStorage('bulletin', defaultBulletin);
   const [goals, setGoals, goalsStatus] = useLocalStorage('goals', [
     { id: uid(), label: 'Average weekly attendance', target: 100, current: 12, horizon: '24 months' },
     { id: uid(), label: 'Monthly Chapel Night rhythm', target: 12, current: 0, horizon: 'Year 1' }
@@ -287,6 +287,18 @@ function DataStateNotice({ status, empty, emptyTitle = 'No planning records yet'
   return null;
 }
 
+const defaultBulletinAnnouncements = [
+  'Sunday Worship — Sundays at 10:30 a.m.',
+  'Wednesday Bible Study — Wednesdays at 6:00 p.m.',
+  'Chapel Night placeholder — details coming soon.',
+  'Dinner at the Schoolhouse placeholder — details coming soon.',
+  'Prayer gathering placeholder — details coming soon.'
+];
+const defaultBulletin = {
+  welcome: 'Welcome to Bible Chapel. We are glad you are here.',
+  announcements: defaultBulletinAnnouncements.map(text => ({ id: uid(), text }))
+};
+
 const firstSundaySteps = [
   'Confirm Ministry Users: Clint Admin, Josh Pastor/Leader, Molly Pastor/Leader',
   'Add Bible Chapel starter content', 'Add first sermon series', 'Add this Sunday’s sermon', 'Plan Sunday service', 'Create bulletin', 'Add any announcements', 'Add first People records if desired', 'Test visitor follow-up workflow', 'Add first attendance/stat record after Sunday', 'Review Dashboard after Sunday', 'Schedule Tuesday follow-up review'
@@ -296,10 +308,10 @@ function SetupChecklist({ tasks, setTasks }) { const items = firstSundayChecklis
 function addUnique(rows, item, key = 'title') { return rows.some(row => normalizeName(row[key]) === normalizeName(item[key])) ? rows : [...rows, { ...item, id: uid() }]; }
 function addBibleChapelStarterContent({ setRhythm, setTasks, setEvents, setSeries, setBulletin, setPlan, flash }) {
   setRhythm(() => starterRhythm.map(r => ({ ...r, id: uid() })));
-  setEvents(rows => sortDateAsc(addUnique(addUnique(rows, { title: 'Sunday Worship', date: nextSundayISO(), time: '9:30 AM', type: 'Service', owner: 'Bible Chapel', notes: 'Weekly worship gathering in Robinson, Illinois.' }), { title: 'Wednesday Bible Study', date: todayISO(), time: '6:00 PM', type: 'Meeting', owner: 'Bible Chapel', notes: 'Midweek Bible study and ministry night.' })));
+  setEvents(rows => sortDateAsc(addUnique(addUnique(rows, { title: 'Sunday Worship', date: nextSundayISO(), time: '10:30 AM', type: 'Service', owner: 'Bible Chapel', notes: 'Weekly worship gathering in Robinson, Illinois.' }), { title: 'Wednesday Bible Study', date: todayISO(), time: '6:00 PM', type: 'Meeting', owner: 'Bible Chapel', notes: 'Midweek Bible study and ministry night.' })));
   setSeries(rows => addUnique(rows, { title: 'A New Chapter at Bible Chapel', startDate: nextSundayISO(), scripture: '', theme: 'We are not changing because the past was bad. We are changing because the mission is still alive.', sermons: [] }));
   setPlan(rows => rows.length ? rows : roadmap.map(r => ({ ...r, id: uid() })));
-  setBulletin(b => ({ ...b, welcome: b.welcome || 'Welcome to Bible Chapel. We are glad you are here.', announcements: [...(b.announcements || []), ...['Wednesday Bible Study — Wednesdays at 6:00 p.m.', 'Chapel Night placeholder — details coming soon.', 'Dinner at the Schoolhouse placeholder — details coming soon.', 'Prayer gathering placeholder — details coming soon.'].filter(text => !(b.announcements || []).some(a => a.text === text)).map(text => ({ id: uid(), text }))] }));
+  setBulletin(b => ({ ...b, welcome: b.welcome || defaultBulletin.welcome, announcements: [...(b.announcements || []), ...defaultBulletinAnnouncements.filter(text => !(b.announcements || []).some(a => a.text === text)).map(text => ({ id: uid(), text }))] }));
   setTasks(rows => firstSundaySteps.reduce((acc, title) => acc.some(t => t.setupKey === title) ? acc : [{ id: uid(), title, day: 'Tuesday', lane: 'First Sunday Setup', due: nextSundayISO(), done: false, setupKey: title }, ...acc], rows));
   flash?.('Bible Chapel starter content added without creating people or sensitive records.');
 }
@@ -321,13 +333,13 @@ function Dashboard({ settings, stats, events, services, visitors, prayers, conta
   return <Page eyebrow="Ministry Command Center" title={greeting}>
     <div className="quick-actions"><Button variant="primary" icon={BookOpen} onClick={() => setView('sunday')}>Plan Sunday</Button><Button icon={Plus} onClick={() => setView('care')}>Add visitor</Button><Button icon={HeartHandshake} onClick={() => setView('care')}>Add prayer request</Button><Button icon={Mail} onClick={() => setView('bulletin')}>Create bulletin</Button><Button icon={Map} onClick={() => setView('planning')}>View roadmap</Button></div>
     <div className="stat-grid">
-      <Metric label="Next Sunday" value={nextService ? 'Planned' : '9:30 a.m.'} meta={nextService ? `${fmtDate(nextService.date)} · ${nextService.title}` : 'Create this Sunday’s service plan'}/>
+      <Metric label="Next Sunday" value={nextService ? 'Planned' : '10:30 a.m.'} meta={nextService ? `${fmtDate(nextService.date)} · ${nextService.title}` : 'Create this Sunday’s service plan'}/>
       <Metric label="Next message" value={nextSermon ? nextSermon.title : '—'} meta={nextSermon ? `${nextSermon.seriesTitle || 'Sermon'} · ${fmtDate(nextSermon.date)}` : 'Add a sermon in Planning'}/>
       <Metric label="Visitors to follow up" value={newVisitors} meta={leader ? 'Guests not marked returned/joined' : 'Limited by role'}/>
       <Metric label="Open prayer requests" value={activePrayers} meta={leader ? 'Ongoing care list' : 'Limited by role'}/>
     </div>
     <div className="grid two">
-      <Card title="This Sunday" subtitle={nextService ? fmtDate(nextService.date, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Sunday Worship — 9:30 a.m.'} actions={<Button icon={BookOpen} onClick={() => setView('sunday')}>Plan Sunday</Button>}>{nextService ? <OrderPreview service={nextService}/> : <Empty title="Prepare Sunday before Sunday." text="Build the order of service, connect the sermon, and make sure the gathering is ready." action={<Button variant="primary" onClick={() => setView('sunday')}>Plan Sunday</Button>}/>}</Card>
+      <Card title="This Sunday" subtitle={nextService ? fmtDate(nextService.date, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Sunday Worship — 10:30 a.m.'} actions={<Button icon={BookOpen} onClick={() => setView('sunday')}>Plan Sunday</Button>}>{nextService ? <OrderPreview service={nextService}/> : <Empty title="Prepare Sunday before Sunday." text="Build the order of service, connect the sermon, and make sure the gathering is ready." action={<Button variant="primary" onClick={() => setView('sunday')}>Plan Sunday</Button>}/>}</Card>
       <Card title="Care follow-up" subtitle="Visitors, absences, prayer, and contacts without exposing details to limited roles.">{leader ? <div className="list compact"><InfoRow title="Visitors needing follow-up" meta={`${newVisitors} open`}/><InfoRow title="Recent absences" meta={recentAbsences.length ? recentAbsences.map(a => a.personName || a.name || 'Someone').join(', ') : 'Nothing here yet.'}/><InfoRow title="Recent pastoral contacts" meta={recentContacts.length ? `${recentContacts.length} recent notes` : 'Nothing here yet.'}/></div> : <Empty title="Limited care view" text="Volunteer/View Only users do not see sensitive prayer and care details."/>}</Card>
       <Card title="Attendance trend" subtitle="Watch ministry health over time.">{latest ? <><Metric label="Last attendance" value={attendance} meta={fmtDate(latest.date)}/>{admin && <p className="muted">Last offering: {money(latest.offering)}</p>}</> : <Empty title="Start tracking ministry health." text="Add weekly attendance and ministry notes after Sunday to watch trends over time." action={<Button onClick={() => setView('stats')}>Log attendance</Button>}/>}</Card>
       <Card title="This week" subtitle="Upcoming rhythm and ministry tasks" actions={<Button icon={ClipboardList} onClick={() => setView('rhythm')}>Open rhythm</Button>}>{openTasks.length ? <div className="list">{openTasks.map(t => <TaskRow key={t.id} task={t} readonly/>)}</div> : <Empty title="Nothing here yet." text="Add Tuesday follow-up, Sunday prep, and communication tasks so the week has a home."/>}</Card>
@@ -442,13 +454,13 @@ function Sunday({ services, setServices, series, settings, flash, dataStatus }) 
     setServices(rows => [svc, ...rows]);
     setActiveId(svc.id);
   };
-  const createService = () => { const svc = { id: uid(), date: nextSundayISO(), time: '9:30 AM', title: 'Sunday Worship', order: cloneServiceOrder(), songs: [], slides: [] }; setServices(rows => [svc, ...rows]); setActiveId(svc.id); };
+  const createService = () => { const svc = { id: uid(), date: nextSundayISO(), time: '10:30 AM', title: 'Sunday Worship', order: cloneServiceOrder(), songs: [], slides: [] }; setServices(rows => [svc, ...rows]); setActiveId(svc.id); };
   const update = patch => setServices(rows => rows.map(s => s.id === active.id ? { ...s, ...patch } : s));
   return <Page eyebrow="Sunday" title="Service planner" description="Plan the order, songs, sermon notes, slides, and export a simple PowerPoint.">
     <DataStateNotice status={dataStatus?.services?.loading ? dataStatus.services : dataStatus?.series} empty={!services.length && !upcomingMessages.length} emptyTitle="No services or upcoming messages" emptyText="Create a service or add dated sermons in Planning → Sermon Series."/>
     <div className="toolbar"><Button variant="primary" icon={Plus} onClick={createService}>New service</Button>{services.length > 0 && <Select value={active?.id || ''} onChange={e => setActiveId(e.target.value)}>{services.map(s => <option key={s.id} value={s.id}>{fmtDate(s.date)} — {s.title}</option>)}</Select>}</div>
     <Card title="Upcoming messages" subtitle="Sermons planned in Planning → Sermon Series flow into Sunday here.">{upcomingMessages.length ? <div className="list compact">{upcomingMessages.map(sermon => { const existing = serviceByDate[sermon.date]; return <div className="info-row" key={sermon.id}><div><strong>{sermon.title}</strong><p>{fmtDate(sermon.date)} · {sermon.seriesTitle || 'No series'} · {sermonPassage(sermon) || 'No passage'}</p>{sermonBigIdea(sermon) && <small>{sermonBigIdea(sermon)}</small>}</div><Button icon={BookOpen} onClick={() => planFromSermon(sermon)}>{existing ? 'Open service' : 'Plan service'}</Button></div>; })}</div> : <Empty title="No upcoming messages" text="Add dated sermons in Planning → Sermon Series to plan or open Sunday services from them."/>}</Card>
-    {!active ? <Card><Empty title="No service yet" text="Create a service for this Sunday or plan one from an upcoming message."/></Card> : <div className="grid two"><Card title="Service details"><div className="form-grid two"><Field label="Title"><Input value={active.title} onChange={e => update({ title: e.target.value })}/></Field><Field label="Date"><Input type="date" value={active.date} onChange={e => update({ date: e.target.value })}/></Field><Field label="Time"><Input value={active.time || '9:30 AM'} onChange={e => update({ time: e.target.value })}/></Field><Field label="Scripture / passage"><Input value={active.scripture || ''} onChange={e => update({ scripture: e.target.value })}/></Field><Field label="Series"><Input value={active.seriesTitle || ''} onChange={e => update({ seriesTitle: e.target.value })}/></Field></div><Field label="Big idea / theme"><Input value={active.theme || ''} onChange={e => update({ theme: e.target.value })}/></Field>{active.sermonTitle && <p className="muted">Connected message: {active.sermonTitle}. This sermon is already linked to this service.</p>}<Button icon={Mail} onClick={() => flash?.('Open Bulletin to add this service’s announcements and export the weekly bulletin.')}>Next: create bulletin</Button></Card><OrderEditor service={active} update={update}/><SongsEditor service={active} update={update}/><SlidesEditor service={active} update={update} settings={settings} flash={flash}/></div>}
+    {!active ? <Card><Empty title="No service yet" text="Create a service for this Sunday or plan one from an upcoming message."/></Card> : <div className="grid two"><Card title="Service details"><div className="form-grid two"><Field label="Title"><Input value={active.title} onChange={e => update({ title: e.target.value })}/></Field><Field label="Date"><Input type="date" value={active.date} onChange={e => update({ date: e.target.value })}/></Field><Field label="Time"><Input value={active.time || '10:30 AM'} onChange={e => update({ time: e.target.value })}/></Field><Field label="Scripture / passage"><Input value={active.scripture || ''} onChange={e => update({ scripture: e.target.value })}/></Field><Field label="Series"><Input value={active.seriesTitle || ''} onChange={e => update({ seriesTitle: e.target.value })}/></Field></div><Field label="Big idea / theme"><Input value={active.theme || ''} onChange={e => update({ theme: e.target.value })}/></Field>{active.sermonTitle && <p className="muted">Connected message: {active.sermonTitle}. This sermon is already linked to this service.</p>}<Button icon={Mail} onClick={() => flash?.('Open Bulletin to add this service’s announcements and export the weekly bulletin.')}>Next: create bulletin</Button></Card><OrderEditor service={active} update={update}/><SongsEditor service={active} update={update}/><SlidesEditor service={active} update={update} settings={settings} flash={flash}/></div>}
   </Page>;
 }
 function OrderPreview({ service }) { return <div className="order-preview">{service.order?.slice(0, 7).map((o, i) => <p key={o.id}><span>{i + 1}</span>{o.label}{o.note ? <small> — {o.note}</small> : null}</p>)}</div>; }
