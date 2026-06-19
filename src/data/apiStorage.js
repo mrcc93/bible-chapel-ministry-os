@@ -36,7 +36,7 @@ export function useCollectionStorage(key, initialValue) {
     }
     let cancelled = false;
     setApiState(state => ({ ...state, loading: true, error: '', localDevFallback }));
-    fetch(`/api/collections/${collectionName}`, { headers: { accept: 'application/json' } })
+    fetch(`/api/collections/${collectionName}`, { headers: { accept: 'application/json' }, credentials: 'same-origin' })
       .then(async response => {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.message || payload.error || `API request failed with ${response.status}`);
@@ -70,6 +70,7 @@ export function useCollectionStorage(key, initialValue) {
         fetch(`/api/collections/${collectionName}`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
+          credentials: 'same-origin',
           body: JSON.stringify(next)
         })
           .then(async response => {

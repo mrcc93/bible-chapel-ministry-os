@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   BarChart3, BookOpen, CalendarDays, CheckCircle2, ChevronDown, Church,
@@ -35,7 +35,17 @@ const money = n => `$${(Number(n) || 0).toLocaleString(undefined, { maximumFract
 const clamp = n => Math.max(0, Math.min(100, n));
 const sortDateAsc = (rows, key = 'date') => [...rows].sort((a, b) => String(a[key] || '').localeCompare(String(b[key] || '')));
 const sortDateDesc = (rows, key = 'date') => sortDateAsc(rows, key).reverse();
-const AUTH_ROLE_PLACEHOLDER = 'Cloudflare Access role: pending sign-in';
+const AUTH_ROLE_LABELS = {
+  admin: 'Admin',
+  pastor: 'Pastor/Leader',
+  leader: 'Pastor/Leader',
+  volunteer: 'Volunteer/View Only',
+  viewer: 'Volunteer/View Only',
+  view_only: 'Volunteer/View Only'
+};
+
+const canCheckStatus = () => typeof window !== 'undefined' && window.location.protocol !== 'file:';
+const normalizeRoleLabel = auth => auth?.roleLabel || AUTH_ROLE_LABELS[String(auth?.role || '').toLowerCase()] || (auth?.detected ? 'Authenticated' : 'pending sign-in');
 
 const move = (arr, index, dir) => {
   const next = [...arr];
@@ -134,6 +144,46 @@ const buildServiceFromSermon = (sermon, existing = {}) => {
 };
 
 
+
+function useApiStatus() {
+  const [status, setStatus] = useState({
+    loading: canCheckStatus(),
+    ok: false,
+    error: '',
+    auth: { detected: false, roleLabel: null },
+    d1: { bindingAvailable: false, migrationsApplied: false },
+    planningApi: { enabled: false }
+  });
+
+  useEffect(() => {
+    if (!canCheckStatus()) {
+      setStatus(state => ({ ...state, loading: false, error: '', localOnly: true }));
+      return;
+    }
+
+    let cancelled = false;
+    setStatus(state => ({ ...state, loading: true, error: '' }));
+    fetch('/api/status', { headers: { accept: 'application/json' }, credentials: 'same-origin' })
+      .then(async response => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.message || payload.error || `Status request failed with ${response.status}`);
+        return payload;
+      })
+      .then(payload => {
+        if (cancelled) return;
+        setStatus({ ...payload, loading: false, error: '' });
+      })
+      .catch(error => {
+        if (cancelled) return;
+        setStatus(state => ({ ...state, loading: false, ok: false, error: error.message || 'Status request failed.' }));
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  return status;
+}
+
 function App() {
   const [view, setView] = useState('dashboard');
   const [settings, setSettings, settingsStatus] = useLocalStorage('settings', { churchName: 'Bible Chapel', pastor: 'Josh Bailey', theme: 'A New Chapter at Bible Chapel' });
@@ -156,6 +206,7 @@ function App() {
   ]);
   const [plan, setPlan, roadmapStatus] = useLocalStorage('roadmap', roadmap);
   const [toast, setToast] = useState('');
+  const apiStatus = useApiStatus();
 
   const flash = msg => {
     setToast(msg);
@@ -164,11 +215,11 @@ function App() {
 
   const dataStatus = { settings: settingsStatus, rhythm: rhythmStatus, tasks: tasksStatus, events: eventsStatus, annualPlan: annualPlanStatus, services: servicesStatus, series: seriesStatus, bulletin: bulletinStatus, goals: goalsStatus, roadmap: roadmapStatus };
   const planningStatuses = Object.values(dataStatus).filter(status => status?.apiCollection);
-  const planningApiReady = planningStatuses.some(status => status.apiEnabled);
+  const planningApiReady = Boolean(apiStatus?.planningApi?.enabled && apiStatus?.d1?.migrationsApplied);
   const planningApiError = planningStatuses.find(status => status.error);
   const planningLoading = planningStatuses.some(status => status.loading);
 
-  const ctx = { settings, setSettings, rhythm, setRhythm, tasks, setTasks, stats, setStats, events, setEvents, annualPlan, setAnnualPlan, services, setServices, people, setPeople, absences, setAbsences, visitors, setVisitors, prayers, setPrayers, contacts, setContacts, series, setSeries, bulletin, setBulletin, goals, setGoals, plan, setPlan, flash, setView, dataStatus };
+  const ctx = { settings, setSettings, rhythm, setRhythm, tasks, setTasks, stats, setStats, events, setEvents, annualPlan, setAnnualPlan, services, setServices, people, setPeople, absences, setAbsences, visitors, setVisitors, prayers, setPrayers, contacts, setContacts, series, setSeries, bulletin, setBulletin, goals, setGoals, plan, setPlan, flash, setView, dataStatus, apiStatus };
 
   const nav = [
     ['dashboard', Home, 'Dashboard'], ['rhythm', ClipboardList, 'Weekly Rhythm'], ['planning', CalendarDays, 'Planning'], ['sunday', BookOpen, 'Sunday'], ['care', HeartHandshake, 'Care'], ['stats', BarChart3, 'Statistics'], ['bulletin', Mail, 'Bulletin'], ['settings', Settings, 'Settings']
@@ -178,7 +229,7 @@ function App() {
     <aside className="sidebar">
       <div className="brand"><div className="brand-logo-card"><img className="brand-logo" src={bcLogo} alt="Bible Chapel Church logo"/></div><div className="brand-title"><span>Ministry OS</span><strong>{settings.churchName}</strong></div></div>
       <nav>{nav.map(([id, Icon, label]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}><Icon size={18}/>{label}</button>)}</nav>
-      <DataStatusCard planningApiReady={planningApiReady} planningApiError={planningApiError} planningLoading={planningLoading}/>
+      <DataStatusCard apiStatus={apiStatus} planningApiReady={planningApiReady} planningApiError={planningApiError} planningLoading={planningLoading}/>
       <p className="sidebar-note">Sensitive care, prayer, visitor, people, attendance, and giving data stays local-only until Phase 2C.</p>
     </aside>
     <main className="main">
@@ -205,9 +256,13 @@ function Textarea(props) { return <textarea className="input textarea" {...props
 function Select(props) { return <select className="input" {...props}/>; }
 function Empty({ title, text }) { return <div className="empty"><h3>{title}</h3><p>{text}</p></div>; }
 function StatusPill({ children, tone = 'neutral' }) { return <span className={`pill ${tone}`}>{children}</span>; }
-function DataStatusCard({ planningApiReady, planningApiError, planningLoading }) {
-  const planningText = planningLoading ? 'Checking D1/API…' : planningApiReady ? 'Planning data: D1/API-backed' : planningApiError ? 'Planning API error' : 'Planning data: local dev/offline';
-  return <div className="auth-placeholder data-status"><span>Data status</span><strong>{planningText}</strong><p>{AUTH_ROLE_PLACEHOLDER}</p>{planningApiError && <p className="status-error">{planningApiError.error}</p>}<p>Sensitive ministry data: local-only until Phase 2C.</p></div>;
+function DataStatusCard({ apiStatus, planningApiReady, planningApiError, planningLoading }) {
+  const statusLoading = apiStatus?.loading;
+  const authenticated = Boolean(apiStatus?.ok || apiStatus?.auth?.detected);
+  const roleLabel = normalizeRoleLabel(apiStatus?.auth);
+  const planningText = statusLoading ? 'Checking D1/API…' : planningApiReady ? 'Planning data: D1/API-backed' : planningLoading ? 'Checking D1/API…' : 'Planning data: local dev/offline';
+  const collectionError = authenticated && planningApiError;
+  return <div className="auth-placeholder data-status"><span>Data status</span><strong>{planningText}</strong><p>Cloudflare Access role: {roleLabel}</p>{apiStatus?.error && <p className="status-error">{apiStatus.error}</p>}{collectionError && <p className="status-error">Authenticated, but one planning request failed. {planningApiError.error}</p>}<p>Sensitive ministry data: local-only until Phase 2C.</p></div>;
 }
 function DataStateNotice({ status, empty, emptyTitle = 'No planning records yet', emptyText = 'Create the first record to begin planning.' }) {
   if (status?.loading) return <div className="state-banner">Loading D1-backed planning data…</div>;
@@ -507,6 +562,6 @@ function Bulletin({ settings, bulletin, setBulletin, flash, dataStatus }) {
   return <Page eyebrow="Communication" title="Bulletin and weekly message" description="One place to prepare the weekly bulletin, announcements, and church communication." actions={<><Button icon={Copy} onClick={copy}>Copy all</Button><Button variant="primary" icon={Download} onClick={exportPdf}>Export PDF</Button></>}><DataStateNotice status={dataStatus?.bulletin} empty={!(bulletin.announcements || []).length && !bulletin.welcome && !bulletin.message} emptyTitle="No bulletin content yet" emptyText="Add a welcome, announcement, or weekly message."/><div className="grid two"><Card title="Edit"><Field label="Welcome"><Textarea value={bulletin.welcome || ''} onChange={e => set({ welcome: e.target.value })}/></Field><Field label="Scripture"><Input value={bulletin.scripture || ''} onChange={e => set({ scripture: e.target.value })}/></Field><Field label="Prayer focus"><Input value={bulletin.prayerFocus || ''} onChange={e => set({ prayerFocus: e.target.value })}/></Field><div className="inline-add"><Input value={ann} onChange={e => setAnn(e.target.value)} placeholder="Add announcement"/><Button icon={Plus} onClick={add}>Add</Button></div><Field label="Weekly message"><Textarea value={bulletin.message || ''} onChange={e => set({ message: e.target.value })}/></Field></Card><Card title="Preview"><div className="bulletin-preview"><h2>This Week at {settings.churchName || 'Bible Chapel'}</h2><p>{bulletin.welcome}</p>{bulletin.scripture && <p><strong>Scripture:</strong> {bulletin.scripture}</p>}<ul>{(bulletin.announcements || []).map(a => <li key={a.id}>{a.text}</li>)}</ul>{bulletin.prayerFocus && <p><strong>Prayer focus:</strong> {bulletin.prayerFocus}</p>}<pre>{bulletin.message}</pre></div></Card></div></Page>;
 }
 
-function SettingsPage({ settings, setSettings, dataStatus }) { const planningStatuses = Object.values(dataStatus || {}).filter(status => status?.apiCollection); const apiCount = planningStatuses.filter(status => status.apiEnabled).length; const errorCount = planningStatuses.filter(status => status.error).length; return <Page eyebrow="Settings" title="Church app setup" description="Rename the app and set the main ministry theme."><Card title="Identity"><div className="form-grid two"><Field label="Church name"><Input value={settings.churchName} onChange={e => setSettings(s => ({ ...s, churchName: e.target.value }))}/></Field><Field label="Pastor / leader"><Input value={settings.pastor} onChange={e => setSettings(s => ({ ...s, pastor: e.target.value }))}/></Field></div><Field label="Current theme"><Input value={settings.theme} onChange={e => setSettings(s => ({ ...s, theme: e.target.value }))}/></Field></Card><Card title="Data status" subtitle="Phase 2B API readiness"><div className="status-grid"><div><StatusPill tone={apiCount ? 'green' : errorCount ? 'red' : 'gold'}>Planning data</StatusPill><p className="muted">{apiCount ? `${apiCount}/${planningStatuses.length} planning collections are D1/API-backed.` : errorCount ? 'Planning API is not available. Local fallback is for local/offline development only.' : 'Checking planning API availability.'}</p></div><div><StatusPill tone="gold">Sensitive ministry data</StatusPill><p className="muted">Stats/attendance/giving, people, absences, visitors, prayers, and pastoral contacts remain local-only until Phase 2C.</p></div></div></Card><Card title="Production warning" subtitle="Important before using real pastoral data"><p className="muted">This version saves to the browser. Before using it for real prayer requests, visitor details, attendance records, or pastoral contacts, add authentication, Cloudflare D1 storage, backups, and user permissions.</p></Card></Page>; }
+function SettingsPage({ settings, setSettings, dataStatus, apiStatus }) { const planningStatuses = Object.values(dataStatus || {}).filter(status => status?.apiCollection); const errorCount = planningStatuses.filter(status => status.error).length; const planningReady = Boolean(apiStatus?.planningApi?.enabled && apiStatus?.d1?.migrationsApplied); const roleLabel = normalizeRoleLabel(apiStatus?.auth); return <Page eyebrow="Settings" title="Church app setup" description="Rename the app and set the main ministry theme."><Card title="Identity"><div className="form-grid two"><Field label="Church name"><Input value={settings.churchName} onChange={e => setSettings(s => ({ ...s, churchName: e.target.value }))}/></Field><Field label="Pastor / leader"><Input value={settings.pastor} onChange={e => setSettings(s => ({ ...s, pastor: e.target.value }))}/></Field></div><Field label="Current theme"><Input value={settings.theme} onChange={e => setSettings(s => ({ ...s, theme: e.target.value }))}/></Field></Card><Card title="Data status" subtitle="Phase 2B API readiness"><div className="status-grid"><div><StatusPill tone={planningReady ? 'green' : errorCount ? 'red' : 'gold'}>Planning data</StatusPill><p className="muted">{planningReady ? `D1/API-backed; status confirms planning API is enabled and D1 migrations are applied.` : errorCount && apiStatus?.ok ? 'Authenticated, but one planning request failed.' : errorCount ? 'Planning API is not available. Local fallback is for local/offline development only.' : 'Checking planning API availability.'}</p><p className="muted">Cloudflare Access role: {roleLabel}</p></div><div><StatusPill tone="gold">Sensitive ministry data</StatusPill><p className="muted">Stats/attendance/giving, people, absences, visitors, prayers, and pastoral contacts remain local-only until Phase 2C.</p></div></div></Card><Card title="Production warning" subtitle="Important before using real pastoral data"><p className="muted">This version saves to the browser. Before using it for real prayer requests, visitor details, attendance records, or pastoral contacts, add authentication, Cloudflare D1 storage, backups, and user permissions.</p></Card></Page>; }
 
 createRoot(document.getElementById('root')).render(<App/>);
