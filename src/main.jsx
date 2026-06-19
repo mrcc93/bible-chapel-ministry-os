@@ -33,28 +33,38 @@ const nextSundayISO = () => {
 };
 const money = n => `$${(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const clamp = n => Math.max(0, Math.min(100, n));
-const sortDateAsc = (rows, key = 'date') => [...rows].sort((a, b) => String(a[key] || '').localeCompare(String(b[key] || '')));
+const asArray = value => Array.isArray(value) ? value : [];
+const sortDateAsc = (rows, key = 'date') => asArray(rows).slice().sort((a, b) => String(a?.[key] || '').localeCompare(String(b?.[key] || '')));
 const sortDateDesc = (rows, key = 'date') => sortDateAsc(rows, key).reverse();
+const taskDueValue = task => task?.due || task?.dueDate || task?.due_date || '';
+const isTaskComplete = task => Boolean(task?.done || task?.completed || String(task?.status || '').toLowerCase() === 'completed' || String(task?.status || '').toLowerCase() === 'done');
 
 const orderedWeeklyTasks = (tasks = [], rhythm = []) => {
-  const rhythmOrder = new Map((rhythm || []).map((day, index) => [day.day, index]));
-  const source = rhythmOrder.size ? tasks.filter(task => rhythmOrder.has(task.day)) : tasks;
+  const safeTasks = asArray(tasks);
+  const safeRhythm = asArray(rhythm);
+  const rhythmOrder = new Map(safeRhythm.map((day, index) => [day?.day, index]).filter(([day]) => Boolean(day)));
+  const source = rhythmOrder.size ? safeTasks.filter(task => rhythmOrder.has(task?.day)) : safeTasks;
   const today = todayISO();
   const dueRank = task => {
-    if (!task.due) return [2, ''];
-    if (task.due >= today) return [0, task.due];
-    return [1, task.due];
+    const due = taskDueValue(task);
+    if (!due) return [2, ''];
+    if (due >= today) return [0, due];
+    return [1, due];
   };
   return source
+    .filter(task => task && typeof task === 'object')
     .map((task, index) => ({ task, index }))
     .sort((a, b) => {
-      if (Boolean(a.task.done) !== Boolean(b.task.done)) return a.task.done ? 1 : -1;
+      if (isTaskComplete(a.task) !== isTaskComplete(b.task)) return isTaskComplete(a.task) ? 1 : -1;
       const aDue = dueRank(a.task);
       const bDue = dueRank(b.task);
       if (aDue[0] !== bDue[0]) return aDue[0] - bDue[0];
       if (aDue[1] !== bDue[1]) return aDue[1].localeCompare(bDue[1]);
-      const aDay = rhythmOrder.has(a.task.day) ? rhythmOrder.get(a.task.day) : Number.MAX_SAFE_INTEGER;
-      const bDay = rhythmOrder.has(b.task.day) ? rhythmOrder.get(b.task.day) : Number.MAX_SAFE_INTEGER;
+      const aOrder = Number(a.task.sortOrder ?? a.task.sort_order ?? a.task.priority ?? Number.MAX_SAFE_INTEGER);
+      const bOrder = Number(b.task.sortOrder ?? b.task.sort_order ?? b.task.priority ?? Number.MAX_SAFE_INTEGER);
+      if (Number.isFinite(aOrder) && Number.isFinite(bOrder) && aOrder !== bOrder) return aOrder - bOrder;
+      const aDay = rhythmOrder.has(a.task?.day) ? rhythmOrder.get(a.task.day) : Number.MAX_SAFE_INTEGER;
+      const bDay = rhythmOrder.has(b.task?.day) ? rhythmOrder.get(b.task.day) : Number.MAX_SAFE_INTEGER;
       if (aDay !== bDay) return aDay - bDay;
       return a.index - b.index;
     })
@@ -342,7 +352,7 @@ const firstSundaySteps = [
   'Confirm Ministry Users: Clint Admin, Josh Pastor/Leader, Molly Pastor/Leader',
   'Add Bible Chapel starter content', 'Add first sermon series', 'Add this Sunday’s sermon', 'Plan Sunday service', 'Create bulletin', 'Add any announcements', 'Add first People records if desired', 'Test visitor follow-up workflow', 'Add first attendance/stat record after Sunday', 'Review Dashboard after Sunday', 'Schedule Tuesday follow-up review'
 ];
-function firstSundayChecklist(tasks = []) { return firstSundaySteps.map(title => tasks.find(t => t.setupKey === title) || { id: title, title, lane: 'First Sunday Setup', day: 'Tuesday', due: nextSundayISO(), done: false, setupKey: title }); }
+function firstSundayChecklist(tasks = []) { const safeTasks = asArray(tasks); return firstSundaySteps.map(title => safeTasks.find(t => t.setupKey === title) || { id: title, title, lane: 'First Sunday Setup', day: 'Tuesday', due: nextSundayISO(), done: false, setupKey: title }); }
 function SetupChecklist({ tasks, setTasks }) { const items = firstSundayChecklist(tasks); const toggle = item => setTasks(rows => rows.some(t => t.setupKey === item.setupKey) ? rows.map(t => t.setupKey === item.setupKey ? { ...t, done: !t.done } : t) : [{ ...item, id: uid(), done: true }, ...rows]); return <div className="setup-list">{items.map(item => <label key={item.setupKey} className={`check-card ${item.done ? 'on' : ''}`}><input type="checkbox" checked={Boolean(item.done)} onChange={() => toggle(item)}/><span>{item.title}</span></label>)}</div>; }
 function addUnique(rows, item, key = 'title') { return rows.some(row => normalizeName(row[key]) === normalizeName(item[key])) ? rows : [...rows, { ...item, id: uid() }]; }
 function addBibleChapelStarterContent({ setRhythm, setTasks, setEvents, setSeries, setBulletin, setPlan, flash }) {
@@ -354,13 +364,14 @@ function addBibleChapelStarterContent({ setRhythm, setTasks, setEvents, setSerie
   setTasks(rows => firstSundaySteps.reduce((acc, title) => acc.some(t => t.setupKey === title) ? acc : [{ id: uid(), title, day: 'Tuesday', lane: 'First Sunday Setup', due: nextSundayISO(), done: false, setupKey: title }, ...acc], rows));
   flash?.('Bible Chapel starter content added without creating people or sensitive records.');
 }
-function Dashboard({ settings, stats, events, services, visitors, prayers, contacts, absences, tasks, rhythm, goals, plan, series, bulletin, setView, apiStatus, setTasks, setRhythm, setEvents, setSeries, setBulletin, setPlan, flash }) {
+function Dashboard({ settings, stats, events, services, visitors, prayers, contacts, absences, tasks, rhythm, goals, plan, series, bulletin, setView, apiStatus, dataStatus, setTasks, setRhythm, setEvents, setSeries, setBulletin, setPlan, flash }) {
   const latest = sortDateDesc(stats)[0];
   const attendance = latest ? Number(latest.adults || latest.attendanceCount || 0) + Number(latest.kids || 0) + Number(latest.online || 0) : 0;
   const admin = isAdmin(apiStatus?.auth);
   const leader = canManageCare(apiStatus?.auth);
   const upcomingEvents = sortDateAsc(events.filter(e => e.date >= todayISO())).slice(0, 4);
   const thisWeekTasks = orderedWeeklyTasks(tasks, rhythm).slice(0, 3);
+  const tasksError = dataStatus?.tasks?.error;
   const canToggleThisWeekTasks = canEditPlanningTasks(apiStatus?.auth);
   const activePrayers = leader ? prayers.filter(p => p.status !== 'Answered').length : '—';
   const newVisitors = leader ? visitors.filter(v => v.status !== 'Joined' && v.status !== 'Returned').length : '—';
@@ -382,7 +393,7 @@ function Dashboard({ settings, stats, events, services, visitors, prayers, conta
       <Card title="This Sunday" subtitle={nextService ? fmtDate(nextService.date, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Sunday Worship — 10:30 a.m.'} actions={<Button icon={BookOpen} onClick={() => setView('sunday')}>Plan Sunday</Button>}>{nextService ? <OrderPreview service={nextService}/> : <Empty title="Prepare Sunday before Sunday." text="Build the order of service, connect the sermon, and make sure the gathering is ready." action={<Button variant="primary" onClick={() => setView('sunday')}>Plan Sunday</Button>}/>}</Card>
       <Card title="Care follow-up" subtitle="Visitors, absences, prayer, and contacts without exposing details to limited roles.">{leader ? <div className="list compact"><InfoRow title="Visitors needing follow-up" meta={`${newVisitors} open`}/><InfoRow title="Recent absences" meta={recentAbsences.length ? recentAbsences.map(a => a.personName || a.name || 'Someone').join(', ') : 'Nothing here yet.'}/><InfoRow title="Recent pastoral contacts" meta={recentContacts.length ? `${recentContacts.length} recent notes` : 'Nothing here yet.'}/></div> : <Empty title="Limited care view" text="Volunteer/View Only users do not see sensitive prayer and care details."/>}</Card>
       <Card title="Attendance trend" subtitle="Watch ministry health over time.">{latest ? <><Metric label="Last attendance" value={attendance} meta={fmtDate(latest.date)}/>{admin && <p className="muted">Last offering: {money(latest.offering)}</p>}</> : <Empty title="Start tracking ministry health." text="Add weekly attendance and ministry notes after Sunday to watch trends over time." action={<Button onClick={() => setView('stats')}>Log attendance</Button>}/>}</Card>
-      <Card title="This week" subtitle="Upcoming rhythm and ministry tasks" actions={<Button icon={ClipboardList} onClick={() => setView('rhythm')}>Open rhythm</Button>}>{thisWeekTasks.length ? <div className="list">{thisWeekTasks.map(t => <TaskRow key={t.id} task={t} setTasks={setTasks} readonly={!canToggleThisWeekTasks}/>)}</div> : <Empty title="Nothing lined up this week." text="Add recurring ministry tasks in Weekly Rhythm so the dashboard can surface what needs attention." action={<Button variant="primary" icon={ClipboardList} onClick={() => setView('rhythm')}>Open Weekly Rhythm</Button>}/>}</Card>
+      <Card title="This week" subtitle="Upcoming rhythm and ministry tasks" actions={<Button icon={ClipboardList} onClick={() => setView('rhythm')}>Open rhythm</Button>}>{tasksError ? <Empty title="Weekly Rhythm tasks could not load." text="The dashboard is still available. Try opening Weekly Rhythm again after the task data connection recovers." action={<Button variant="primary" icon={ClipboardList} onClick={() => setView('rhythm')}>Open Weekly Rhythm</Button>}/> : thisWeekTasks.length ? <div className="list">{thisWeekTasks.map((t, index) => <TaskRow key={t?.id || `dashboard-task-${index}`} task={t} setTasks={setTasks} readonly={!canToggleThisWeekTasks}/>)}</div> : <Empty title="Nothing lined up this week." text="Add recurring ministry tasks in Weekly Rhythm so the dashboard can surface what needs attention." action={<Button variant="primary" icon={ClipboardList} onClick={() => setView('rhythm')}>Open Weekly Rhythm</Button>}/>}</Card>
       <Card title="Roadmap focus" subtitle="A New Chapter at Bible Chapel" actions={<Button icon={Map} onClick={() => setView('planning')}>View roadmap</Button>}>{currentRoadmap ? <div className="roadmap-focus"><StatusPill tone="gold">{currentRoadmap.month}</StatusPill><h3>{currentRoadmap.title}</h3><p>{currentRoadmap.action}</p><small>Goal: {currentRoadmap.goal}</small></div> : <Empty title="Keep the revitalization plan visible." text="Track progress toward the next chapter at Bible Chapel."/>}</Card>
     </div>
     <Card title="Goals" subtitle="Keep the scoreboard visible without making numbers the mission."><div className="goal-grid">{goals.map(g => <GoalBar key={g.id} goal={g}/>)}</div></Card>
@@ -393,23 +404,32 @@ function GoalBar({ goal }) { const pct = clamp(Math.round((Number(goal.current) 
 function InfoRow({ title, meta, children }) { return <div className="info-row"><div><strong>{title}</strong><p>{meta}</p>{children}</div></div>; }
 
 function Rhythm({ rhythm, setRhythm, tasks, setTasks, dataStatus }) {
+  const safeRhythm = asArray(rhythm);
+  const safeTasks = asArray(tasks);
   const [task, setTask] = useState({ title: '', day: 'Tuesday', lane: 'Follow-up', due: todayISO() });
-  const addTask = () => { if (!task.title.trim()) return; setTasks(rows => [{ ...task, id: uid(), done: false }, ...rows]); setTask({ title: '', day: task.day, lane: task.lane, due: task.due }); };
-  const updateDay = (id, patch) => setRhythm(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
-  const grouped = rhythm.map(day => ({ ...day, tasks: orderedWeeklyTasks(tasks.filter(t => t.day === day.day), [day]) }));
+  const addTask = () => { if (!task.title.trim()) return; setTasks(rows => [{ ...task, id: uid(), done: false }, ...asArray(rows)]); setTask({ title: '', day: task.day, lane: task.lane, due: task.due }); };
+  const updateDay = (id, patch) => setRhythm(rows => asArray(rows).map(r => r.id === id ? { ...r, ...patch } : r));
+  const grouped = safeRhythm.map(day => ({ ...day, tasks: orderedWeeklyTasks(safeTasks.filter(t => t?.day === day.day), [day]) }));
   return <Page eyebrow="Weekly Rhythm" title="Plan the week before the week runs you." description="Use this page to organize the recurring work of ministry: Sunday preparation, guest follow-up, Bible study, communication, planning, and rest.">
-    <DataStateNotice status={dataStatus?.rhythm?.loading ? dataStatus.rhythm : dataStatus?.tasks} empty={!rhythm.length && !tasks.length} emptyTitle="No weekly rhythm loaded" emptyText="Add rhythm days and tasks once D1/API is connected or while working locally."/>
+    <DataStateNotice status={dataStatus?.rhythm?.loading ? dataStatus.rhythm : dataStatus?.tasks} empty={!safeRhythm.length && !safeTasks.length} emptyTitle="No weekly rhythm loaded" emptyText="Add rhythm days and tasks once D1/API is connected or while working locally."/>
     <Card title="Add a ministry task" subtitle="Assign it to a day so the work has a home.">
-      <div className="form-grid four"><Field label="Task"><Input value={task.title} onChange={e => setTask({ ...task, title: e.target.value })} placeholder="Call first-time guest"/></Field><Field label="Day"><Select value={task.day} onChange={e => setTask({ ...task, day: e.target.value })}>{rhythm.map(r => <option key={r.id}>{r.day}</option>)}</Select></Field><Field label="Lane"><Select value={task.lane} onChange={e => setTask({ ...task, lane: e.target.value })}>{['Follow-up','Sunday','Creative','Podcast','Schoolhouse','Care','Admin','Prayer'].map(x => <option key={x}>{x}</option>)}</Select></Field><Field label="Due"><Input type="date" value={task.due} onChange={e => setTask({ ...task, due: e.target.value })}/></Field></div>
+      <div className="form-grid four"><Field label="Task"><Input value={task.title} onChange={e => setTask({ ...task, title: e.target.value })} placeholder="Call first-time guest"/></Field><Field label="Day"><Select value={task.day} onChange={e => setTask({ ...task, day: e.target.value })}>{safeRhythm.map(r => <option key={r.id || r.day}>{r.day}</option>)}</Select></Field><Field label="Lane"><Select value={task.lane} onChange={e => setTask({ ...task, lane: e.target.value })}>{['Follow-up','Sunday','Creative','Podcast','Schoolhouse','Care','Admin','Prayer'].map(x => <option key={x}>{x}</option>)}</Select></Field><Field label="Due"><Input type="date" value={task.due} onChange={e => setTask({ ...task, due: e.target.value })}/></Field></div>
       <Button variant="primary" icon={Plus} onClick={addTask}>Add task</Button>
     </Card>
     <div className="week-grid">{grouped.map(day => <Card key={day.id} className={day.protectedRest ? 'rest-card' : ''} title={day.day} subtitle={day.title} actions={day.protectedRest && <StatusPill tone="green">Protected rest</StatusPill>}>
       <Textarea value={day.focus} onChange={e => updateDay(day.id, { focus: e.target.value })}/>
-      <div className="list compact">{day.tasks.length ? day.tasks.map(t => <TaskRow key={t.id} task={t} setTasks={setTasks}/>) : <p className="muted">No tasks for {day.day}.</p>}</div>
+      <div className="list compact">{day.tasks.length ? day.tasks.map((t, index) => <TaskRow key={t?.id || `${day.day}-task-${index}`} task={t} setTasks={setTasks}/>) : <p className="muted">No tasks for {day.day}.</p>}</div>
     </Card>)}</div>
   </Page>;
 }
-function TaskRow({ task, setTasks, readonly = false }) { const toggle = () => setTasks?.(rows => rows.map(t => t.id === task.id ? { ...t, done: !t.done } : t)); return <div className={`task ${task.done ? 'done' : ''}`}><label className="task-check"><input type="checkbox" checked={Boolean(task.done)} disabled={readonly} onChange={toggle}/><span><strong>{task.title}</strong><p>{[task.day, task.lane, task.due ? `due ${fmtDate(task.due)}` : '', task.done ? 'Completed' : ''].filter(Boolean).join(' · ')}</p></span></label>{!readonly && <button className="icon-button" aria-label={task.done ? `Mark ${task.title} incomplete` : `Mark ${task.title} complete`} onClick={toggle}><CheckCircle2 size={18}/></button>}</div>; }
+function TaskRow({ task, setTasks, readonly = false }) {
+  const safeTask = task && typeof task === 'object' ? task : {};
+  const done = isTaskComplete(safeTask);
+  const title = String(safeTask.title || safeTask.name || 'Untitled task');
+  const due = taskDueValue(safeTask);
+  const meta = [safeTask.day || '', safeTask.lane || safeTask.category || '', due ? `due ${fmtDate(due)}` : '', done ? 'Completed' : ''].filter(Boolean).join(' · ');
+  const toggle = () => setTasks?.(rows => asArray(rows).map(t => t?.id === safeTask.id ? { ...t, done: !done, completed: undefined, status: undefined } : t));
+  return <div className={`task ${done ? 'done' : ''}`}><label className="task-check"><input type="checkbox" checked={done} disabled={readonly || !safeTask.id} onChange={toggle}/><span><strong>{title}</strong><p>{meta || 'Weekly Rhythm task'}</p></span></label>{!readonly && safeTask.id && <button className="icon-button" aria-label={done ? `Mark ${title} incomplete` : `Mark ${title} complete`} onClick={toggle}><CheckCircle2 size={18}/></button>}</div>; }
 
 function Planning({ events, setEvents, annualPlan, setAnnualPlan, series, setSeries, goals, setGoals, plan, setPlan, dataStatus, auth }) {
   const [tab, setTab] = useState('month');
