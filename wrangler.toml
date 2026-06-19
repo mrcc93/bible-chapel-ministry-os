@@ -8,5 +8,5 @@ compatibility_date = "2026-06-17"
 [[d1_databases]]
 binding = "DB"
 database_name = "bible-chapel-ministry-os"
-database_id = "replace-with-cloudflare-d1-database-id"
+database_id = "f1c95e6e-c8c3-4649-ae11-178f3a74633f"
 migrations_dir = "cloudflare/migrations"
