@@ -9,7 +9,7 @@ export const COLLECTIONS = Object.freeze({
   settings: { storageKey: 'bc-planner:settings', d1Table: 'organizations', sensitive: false },
   rhythm: { apiBackedPhase2B: true, storageKey: 'bc-planner:rhythm', d1Table: 'weekly_rhythm_days', sensitive: false },
   tasks: { apiBackedPhase2B: true, storageKey: 'bc-planner:tasks', d1Table: 'tasks', sensitive: false },
-  stats: { apiBlockedUntilPhase2C: true, storageKey: 'bc-planner:stats', d1Table: 'attendance_stats', sensitive: true },
+  stats: { apiBackedFinalPhase: true, storageKey: 'bc-planner:stats', d1Table: 'attendance_stats', sensitive: true },
   events: { apiBackedPhase2B: true, storageKey: 'bc-planner:events', d1Table: 'ministry_events', sensitive: false },
   annualPlan: { apiBackedPhase2B: true, storageKey: 'bc-planner:annualPlan', d1Table: 'annual_priorities', sensitive: false },
   services: { apiBackedPhase2B: true, storageKey: 'bc-planner:services', d1Table: 'services/service_order_items', sensitive: false },
