@@ -379,3 +379,31 @@ Role permissions in this prep phase:
 - **Volunteer/View Only** can view allowed data but cannot add/edit/remove People records and cannot manage users.
 
 People records remain local-only in this phase, but the UI permission model is prepared for the upcoming People D1 migration. Visitors, absences, prayers/prayer requests, contacts/pastoral contacts, stats/attendance/giving remain local-only and are not migrated by Phase 2C-Prep. No JSON blob storage is introduced for ministry users or planning data.
+
+## Phase 2C-B: People Directory D1 migration
+
+Phase 2C-B migrates only the People Directory (`people`) from browser-only storage to authenticated, typed/queryable Cloudflare D1 storage. The app uses the existing normalized `people` table with explicit columns for name, role/status/category, phone, email, notes, active state, and timestamps; no generic JSON blob storage is introduced for People records.
+
+People Directory API behavior in this phase:
+
+- `/api/collections/people` requires Cloudflare Access authentication through the existing `/api/*` middleware.
+- Admin and Pastor/Leader users can read, create, update, replace, and delete People records.
+- Volunteer/View Only users are blocked from the sensitive People API and cannot create, update, or delete People records.
+- Create/update/delete operations attempt to write audit log entries without including sensitive People details in audit metadata.
+- Validation requires a name and uses gentle email/phone checks that catch obvious mistakes without enforcing strict formatting.
+- Local/offline fallback for People is limited to local development hosts; production API failures are surfaced in the UI as deployment/configuration errors.
+- Admin and Pastor/Leader users can use the People tab import action to merge existing `bc-planner:people` browser records into D1 while avoiding duplicates by name/email/phone where possible.
+
+D1/API-backed collections after Phase 2C-B:
+
+- Planning data: weekly rhythm, tasks, ministry events, annual priorities, roadmap, goals, sermon series, services, and bulletin announcements.
+- Ministry Users / Role Management.
+- People Directory.
+
+Still localStorage-only and intentionally blocked from API migration until later Phase 2C steps:
+
+- Visitors.
+- Prayer requests.
+- Absences.
+- Pastoral contacts.
+- Stats, attendance, and giving.

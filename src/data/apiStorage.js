@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { COLLECTIONS, assertCollectionName } from './collections.js';
 
-const API_COLLECTIONS = new Set(['rhythm', 'tasks', 'events', 'annualPlan', 'roadmap', 'goals', 'series', 'services', 'bulletin']);
+const API_COLLECTIONS = new Set(['rhythm', 'tasks', 'events', 'annualPlan', 'roadmap', 'goals', 'series', 'services', 'bulletin', 'people']);
 const LOCAL_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
 const canUseApi = () => typeof window !== 'undefined' && window.location.protocol !== 'file:';
 const isLocalDev = () => typeof window !== 'undefined' && LOCAL_DEV_HOSTS.has(window.location.hostname);
@@ -21,6 +21,7 @@ export function useCollectionStorage(key, initialValue) {
     lastSyncedAt: ''
   }));
   const [value, setValue] = useState(() => {
+    if (apiCollection && !localDevFallback) return initialValue;
     try {
       const raw = localStorage.getItem(config.storageKey);
       return raw ? JSON.parse(raw) : initialValue;
@@ -47,7 +48,7 @@ export function useCollectionStorage(key, initialValue) {
         const next = payload.data ?? initialValue;
         setApiState(state => ({ ...state, apiEnabled: true, loading: false, error: '', lastSyncedAt: new Date().toISOString() }));
         setValue(next);
-        localStorage.setItem(config.storageKey, JSON.stringify(next));
+        if (localDevFallback) localStorage.setItem(config.storageKey, JSON.stringify(next));
       })
       .catch(error => {
         if (cancelled) return;
@@ -65,7 +66,7 @@ export function useCollectionStorage(key, initialValue) {
   const setStored = updater => {
     setValue(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      localStorage.setItem(config.storageKey, JSON.stringify(next));
+      if (!apiCollection || localDevFallback) localStorage.setItem(config.storageKey, JSON.stringify(next));
       if (apiState.apiEnabled && apiCollection) {
         fetch(`/api/collections/${collectionName}`, {
           method: 'PUT',

@@ -1,4 +1,4 @@
-import { BLOCKED_COLLECTIONS, PLANNING_COLLECTIONS, json } from '../_shared/planning-api.js';
+import { BLOCKED_COLLECTIONS, PEOPLE_COLLECTIONS, PLANNING_COLLECTIONS, json } from '../_shared/planning-api.js';
 
 const REQUIRED_PLANNING_TABLES = Object.freeze([
   'weekly_rhythm_days',
@@ -14,7 +14,8 @@ const REQUIRED_PLANNING_TABLES = Object.freeze([
   'service_songs',
   'service_slides',
   'bulletin_announcements',
-  'ministry_users'
+  'ministry_users',
+  'people'
 ]);
 
 async function checkD1Schema(db) {
@@ -76,6 +77,13 @@ export async function onRequestGet(context) {
       enabled: true,
       roleSource: authUser?.roleSource || null,
       managedInApp: true
+    },
+    peopleDirectory: {
+      enabled: true,
+      collections: Object.keys(PEOPLE_COLLECTIONS),
+      typedTablesOnly: true,
+      jsonBlobStorage: false,
+      minimumRole: PEOPLE_COLLECTIONS.people.minimumRole
     },
     sensitiveCollections: {
       blockedFromApiMigration: true,
