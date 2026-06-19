@@ -35,6 +35,32 @@ const money = n => `$${(Number(n) || 0).toLocaleString(undefined, { maximumFract
 const clamp = n => Math.max(0, Math.min(100, n));
 const sortDateAsc = (rows, key = 'date') => [...rows].sort((a, b) => String(a[key] || '').localeCompare(String(b[key] || '')));
 const sortDateDesc = (rows, key = 'date') => sortDateAsc(rows, key).reverse();
+
+const orderedWeeklyTasks = (tasks = [], rhythm = []) => {
+  const rhythmOrder = new Map((rhythm || []).map((day, index) => [day.day, index]));
+  const source = rhythmOrder.size ? tasks.filter(task => rhythmOrder.has(task.day)) : tasks;
+  const today = todayISO();
+  const dueRank = task => {
+    if (!task.due) return [2, ''];
+    if (task.due >= today) return [0, task.due];
+    return [1, task.due];
+  };
+  return source
+    .map((task, index) => ({ task, index }))
+    .sort((a, b) => {
+      if (Boolean(a.task.done) !== Boolean(b.task.done)) return a.task.done ? 1 : -1;
+      const aDue = dueRank(a.task);
+      const bDue = dueRank(b.task);
+      if (aDue[0] !== bDue[0]) return aDue[0] - bDue[0];
+      if (aDue[1] !== bDue[1]) return aDue[1].localeCompare(bDue[1]);
+      const aDay = rhythmOrder.has(a.task.day) ? rhythmOrder.get(a.task.day) : Number.MAX_SAFE_INTEGER;
+      const bDay = rhythmOrder.has(b.task.day) ? rhythmOrder.get(b.task.day) : Number.MAX_SAFE_INTEGER;
+      if (aDay !== bDay) return aDay - bDay;
+      return a.index - b.index;
+    })
+    .map(({ task }) => task);
+};
+const canEditPlanningTasks = auth => !auth?.role || (ROLE_RANK[auth.role] || 0) >= ROLE_RANK.volunteer_view_only;
 const AUTH_ROLE_LABELS = {
   admin: 'Admin',
   pastor: 'Pastor/Leader',
@@ -328,13 +354,14 @@ function addBibleChapelStarterContent({ setRhythm, setTasks, setEvents, setSerie
   setTasks(rows => firstSundaySteps.reduce((acc, title) => acc.some(t => t.setupKey === title) ? acc : [{ id: uid(), title, day: 'Tuesday', lane: 'First Sunday Setup', due: nextSundayISO(), done: false, setupKey: title }, ...acc], rows));
   flash?.('Bible Chapel starter content added without creating people or sensitive records.');
 }
-function Dashboard({ settings, stats, events, services, visitors, prayers, contacts, absences, tasks, goals, plan, series, bulletin, setView, apiStatus, setTasks, setRhythm, setEvents, setSeries, setBulletin, setPlan, flash }) {
+function Dashboard({ settings, stats, events, services, visitors, prayers, contacts, absences, tasks, rhythm, goals, plan, series, bulletin, setView, apiStatus, setTasks, setRhythm, setEvents, setSeries, setBulletin, setPlan, flash }) {
   const latest = sortDateDesc(stats)[0];
   const attendance = latest ? Number(latest.adults || latest.attendanceCount || 0) + Number(latest.kids || 0) + Number(latest.online || 0) : 0;
   const admin = isAdmin(apiStatus?.auth);
   const leader = canManageCare(apiStatus?.auth);
   const upcomingEvents = sortDateAsc(events.filter(e => e.date >= todayISO())).slice(0, 4);
-  const openTasks = tasks.filter(t => !t.done).slice(0, 6);
+  const thisWeekTasks = orderedWeeklyTasks(tasks, rhythm).slice(0, 3);
+  const canToggleThisWeekTasks = canEditPlanningTasks(apiStatus?.auth);
   const activePrayers = leader ? prayers.filter(p => p.status !== 'Answered').length : '—';
   const newVisitors = leader ? visitors.filter(v => v.status !== 'Joined' && v.status !== 'Returned').length : '—';
   const recentAbsences = leader ? sortDateDesc(absences).slice(0, 3) : [];
@@ -355,7 +382,7 @@ function Dashboard({ settings, stats, events, services, visitors, prayers, conta
       <Card title="This Sunday" subtitle={nextService ? fmtDate(nextService.date, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Sunday Worship — 10:30 a.m.'} actions={<Button icon={BookOpen} onClick={() => setView('sunday')}>Plan Sunday</Button>}>{nextService ? <OrderPreview service={nextService}/> : <Empty title="Prepare Sunday before Sunday." text="Build the order of service, connect the sermon, and make sure the gathering is ready." action={<Button variant="primary" onClick={() => setView('sunday')}>Plan Sunday</Button>}/>}</Card>
       <Card title="Care follow-up" subtitle="Visitors, absences, prayer, and contacts without exposing details to limited roles.">{leader ? <div className="list compact"><InfoRow title="Visitors needing follow-up" meta={`${newVisitors} open`}/><InfoRow title="Recent absences" meta={recentAbsences.length ? recentAbsences.map(a => a.personName || a.name || 'Someone').join(', ') : 'Nothing here yet.'}/><InfoRow title="Recent pastoral contacts" meta={recentContacts.length ? `${recentContacts.length} recent notes` : 'Nothing here yet.'}/></div> : <Empty title="Limited care view" text="Volunteer/View Only users do not see sensitive prayer and care details."/>}</Card>
       <Card title="Attendance trend" subtitle="Watch ministry health over time.">{latest ? <><Metric label="Last attendance" value={attendance} meta={fmtDate(latest.date)}/>{admin && <p className="muted">Last offering: {money(latest.offering)}</p>}</> : <Empty title="Start tracking ministry health." text="Add weekly attendance and ministry notes after Sunday to watch trends over time." action={<Button onClick={() => setView('stats')}>Log attendance</Button>}/>}</Card>
-      <Card title="This week" subtitle="Upcoming rhythm and ministry tasks" actions={<Button icon={ClipboardList} onClick={() => setView('rhythm')}>Open rhythm</Button>}>{openTasks.length ? <div className="list">{openTasks.map(t => <TaskRow key={t.id} task={t} readonly/>)}</div> : <Empty title="Nothing here yet." text="Add Tuesday follow-up, Sunday prep, and communication tasks so the week has a home."/>}</Card>
+      <Card title="This week" subtitle="Upcoming rhythm and ministry tasks" actions={<Button icon={ClipboardList} onClick={() => setView('rhythm')}>Open rhythm</Button>}>{thisWeekTasks.length ? <div className="list">{thisWeekTasks.map(t => <TaskRow key={t.id} task={t} setTasks={setTasks} readonly={!canToggleThisWeekTasks}/>)}</div> : <Empty title="Nothing lined up this week." text="Add recurring ministry tasks in Weekly Rhythm so the dashboard can surface what needs attention." action={<Button variant="primary" icon={ClipboardList} onClick={() => setView('rhythm')}>Open Weekly Rhythm</Button>}/>}</Card>
       <Card title="Roadmap focus" subtitle="A New Chapter at Bible Chapel" actions={<Button icon={Map} onClick={() => setView('planning')}>View roadmap</Button>}>{currentRoadmap ? <div className="roadmap-focus"><StatusPill tone="gold">{currentRoadmap.month}</StatusPill><h3>{currentRoadmap.title}</h3><p>{currentRoadmap.action}</p><small>Goal: {currentRoadmap.goal}</small></div> : <Empty title="Keep the revitalization plan visible." text="Track progress toward the next chapter at Bible Chapel."/>}</Card>
     </div>
     <Card title="Goals" subtitle="Keep the scoreboard visible without making numbers the mission."><div className="goal-grid">{goals.map(g => <GoalBar key={g.id} goal={g}/>)}</div></Card>
@@ -369,7 +396,7 @@ function Rhythm({ rhythm, setRhythm, tasks, setTasks, dataStatus }) {
   const [task, setTask] = useState({ title: '', day: 'Tuesday', lane: 'Follow-up', due: todayISO() });
   const addTask = () => { if (!task.title.trim()) return; setTasks(rows => [{ ...task, id: uid(), done: false }, ...rows]); setTask({ title: '', day: task.day, lane: task.lane, due: task.due }); };
   const updateDay = (id, patch) => setRhythm(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
-  const grouped = rhythm.map(day => ({ ...day, tasks: tasks.filter(t => t.day === day.day && !t.done) }));
+  const grouped = rhythm.map(day => ({ ...day, tasks: orderedWeeklyTasks(tasks.filter(t => t.day === day.day), [day]) }));
   return <Page eyebrow="Weekly Rhythm" title="Plan the week before the week runs you." description="Use this page to organize the recurring work of ministry: Sunday preparation, guest follow-up, Bible study, communication, planning, and rest.">
     <DataStateNotice status={dataStatus?.rhythm?.loading ? dataStatus.rhythm : dataStatus?.tasks} empty={!rhythm.length && !tasks.length} emptyTitle="No weekly rhythm loaded" emptyText="Add rhythm days and tasks once D1/API is connected or while working locally."/>
     <Card title="Add a ministry task" subtitle="Assign it to a day so the work has a home.">
@@ -378,11 +405,11 @@ function Rhythm({ rhythm, setRhythm, tasks, setTasks, dataStatus }) {
     </Card>
     <div className="week-grid">{grouped.map(day => <Card key={day.id} className={day.protectedRest ? 'rest-card' : ''} title={day.day} subtitle={day.title} actions={day.protectedRest && <StatusPill tone="green">Protected rest</StatusPill>}>
       <Textarea value={day.focus} onChange={e => updateDay(day.id, { focus: e.target.value })}/>
-      <div className="list compact">{day.tasks.length ? day.tasks.map(t => <TaskRow key={t.id} task={t} setTasks={setTasks}/>) : <p className="muted">No open tasks for {day.day}.</p>}</div>
+      <div className="list compact">{day.tasks.length ? day.tasks.map(t => <TaskRow key={t.id} task={t} setTasks={setTasks}/>) : <p className="muted">No tasks for {day.day}.</p>}</div>
     </Card>)}</div>
   </Page>;
 }
-function TaskRow({ task, setTasks, readonly = false }) { return <div className={`task ${task.done ? 'done' : ''}`}><div><strong>{task.title}</strong><p>{task.day} · {task.lane} · due {fmtDate(task.due)}</p></div>{!readonly && <button className="icon-button" onClick={() => setTasks(rows => rows.map(t => t.id === task.id ? { ...t, done: !t.done } : t))}><CheckCircle2 size={18}/></button>}</div>; }
+function TaskRow({ task, setTasks, readonly = false }) { const toggle = () => setTasks?.(rows => rows.map(t => t.id === task.id ? { ...t, done: !t.done } : t)); return <div className={`task ${task.done ? 'done' : ''}`}><label className="task-check"><input type="checkbox" checked={Boolean(task.done)} disabled={readonly} onChange={toggle}/><span><strong>{task.title}</strong><p>{[task.day, task.lane, task.due ? `due ${fmtDate(task.due)}` : '', task.done ? 'Completed' : ''].filter(Boolean).join(' · ')}</p></span></label>{!readonly && <button className="icon-button" aria-label={task.done ? `Mark ${task.title} incomplete` : `Mark ${task.title} complete`} onClick={toggle}><CheckCircle2 size={18}/></button>}</div>; }
 
 function Planning({ events, setEvents, annualPlan, setAnnualPlan, series, setSeries, goals, setGoals, plan, setPlan, dataStatus, auth }) {
   const [tab, setTab] = useState('month');
