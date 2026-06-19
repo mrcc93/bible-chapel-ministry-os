@@ -99,7 +99,7 @@ h1,h2,h3{font-family:Fraunces,Georgia,serif;margin:0;line-height:1.12;color:var(
 .editable-goal{display:grid;grid-template-columns:1fr 150px 40px;gap:10px;align-items:center}
 .week-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
 .rest-card{background:#f2f8fd;border-color:#c8ddeb}
-.task.done{opacity:.6;text-decoration:line-through}
+.task-check{display:flex;align-items:flex-start;gap:10px;min-width:0}.task-check input{width:20px;height:20px;margin-top:1px;accent-color:var(--gold);flex:0 0 auto}.task-check span{min-width:0}.task.done{background:#f7f3eb;opacity:.78}.task.done strong{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}.task.done p{color:var(--muted)}
 .roadmap-list{display:grid;gap:12px}
 .roadmap-editor{border:1px solid var(--line);border-radius:16px;background:var(--blue-soft);padding:14px;margin:14px 0 18px}
 .roadmap-year{display:grid;gap:10px;margin-top:18px}
