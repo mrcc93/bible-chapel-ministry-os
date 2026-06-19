@@ -14,9 +14,12 @@ export const PLANNING_COLLECTIONS = Object.freeze({
   bulletin: { minimumRole: ROLES.VOLUNTEER_VIEW_ONLY }
 });
 
+export const PEOPLE_COLLECTIONS = Object.freeze({
+  people: { minimumRole: ROLES.PASTOR_LEADER }
+});
+
 export const BLOCKED_COLLECTIONS = Object.freeze({
-  stats: 'Attendance, statistics, and giving remain localStorage-only until Phase 2C.',
-  people: 'People records remain localStorage-only until Phase 2C.',
+  stats: 'Attendance, statistics, and giving remain localStorage-only until later Phase 2C steps.',
   absences: 'Absence records remain localStorage-only until Phase 2C.',
   visitors: 'Visitor records remain localStorage-only until Phase 2C.',
   prayers: 'Prayer requests remain localStorage-only until Phase 2C.',
@@ -65,6 +68,11 @@ const scalarConfigs = {
     table: 'roadmap_items', order: 'sort_order, month', required: ['month', 'title'],
     toDb: (row, index) => ({ id: row.id || newId(), organization_id: ORG_ID, month: clean(row.month), title: clean(row.title), action: row.action || null, goal: row.goal || null, status: row.status || 'Not started', sort_order: index }),
     fromDb: row => ({ id: row.id, month: row.month, title: row.title, action: row.action || '', goal: row.goal || '', status: row.status || 'Not started' })
+  },
+  people: {
+    table: 'people', order: 'name COLLATE NOCASE, created_at', required: ['name'],
+    toDb: row => ({ id: row.id || newId(), organization_id: ORG_ID, name: clean(row.name), role: row.status || row.category || row.role || row.source || null, phone: clean(row.phone) || null, email: clean(row.email).toLowerCase() || null, notes: row.notes || null, active: row.active === false ? 0 : 1 }),
+    fromDb: row => ({ id: row.id, name: row.name, phone: row.phone || '', email: row.email || '', notes: row.notes || '', status: row.role || '', category: row.role || '', source: row.role || '', active: fromBool(row.active), created_at: row.created_at, updated_at: row.updated_at })
   }
 };
 
@@ -74,14 +82,24 @@ function validateRow(collection, row) {
   if (collection === 'bulletin') return row.announcements && !Array.isArray(row.announcements) ? 'Bulletin announcements must be an array.' : null;
   if (collection === 'services') return !String(row.date || '').trim() ? 'A service date is required.' : null;
   if (collection === 'series') return !String(row.title || '').trim() ? 'A series title is required.' : null;
+  if (collection === 'people') {
+    if (!String(row.name || '').trim()) return 'Name is required.';
+    if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(row.email).trim())) return 'Email should look like name@example.com.';
+    if (row.phone && String(row.phone).replace(/[^0-9]/g, '').length < 7) return 'Phone should include at least seven digits.';
+  }
   const config = scalarConfigs[collection];
   for (const field of config?.required || []) if (!String(row[field] || '').trim()) return `${field} is required.`;
   return null;
 }
 
-function validatePartialRow(row) {
+function validatePartialRow(collection, row) {
   if (!row || typeof row !== 'object' || Array.isArray(row)) return 'Row must be an object.';
   if (row.id != null && typeof row.id !== 'string') return 'Row id must be a string.';
+  if (collection === 'people') {
+    if (Object.prototype.hasOwnProperty.call(row, 'name') && !String(row.name || '').trim()) return 'Name is required.';
+    if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(row.email).trim())) return 'Email should look like name@example.com.';
+    if (row.phone && String(row.phone).replace(/[^0-9]/g, '').length < 7) return 'Phone should include at least seven digits.';
+  }
   return null;
 }
 
@@ -93,7 +111,7 @@ export function validatePayload(collection, payload, { partial = false } = {}) {
   const rows = Array.isArray(payload) ? payload : [payload];
   if (!partial && !rows.length) return { error: 'At least one row is required.' };
   for (const row of rows) {
-    const message = partial ? validatePartialRow(row) : validateRow(collection, row);
+    const message = partial ? validatePartialRow(collection, row) : validateRow(collection, row);
     if (message) return { error: message };
   }
   return null;
@@ -105,7 +123,7 @@ export async function readBody(request) {
 
 export function getCollectionAccess(collection, authUser) {
   if (BLOCKED_COLLECTIONS[collection]) return { response: json({ error: 'Collection intentionally blocked from API migration', collection, message: BLOCKED_COLLECTIONS[collection] }, { status: 403 }) };
-  const config = PLANNING_COLLECTIONS[collection];
+  const config = PLANNING_COLLECTIONS[collection] || PEOPLE_COLLECTIONS[collection];
   if (!config) return { response: json({ error: 'Unknown collection' }, { status: 404 }) };
   const roleError = requireRole(authUser, config.minimumRole);
   if (roleError) return { response: roleError };

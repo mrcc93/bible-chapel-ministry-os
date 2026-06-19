@@ -13,7 +13,7 @@ export const COLLECTIONS = Object.freeze({
   events: { apiBackedPhase2B: true, storageKey: 'bc-planner:events', d1Table: 'ministry_events', sensitive: false },
   annualPlan: { apiBackedPhase2B: true, storageKey: 'bc-planner:annualPlan', d1Table: 'annual_priorities', sensitive: false },
   services: { apiBackedPhase2B: true, storageKey: 'bc-planner:services', d1Table: 'services/service_order_items', sensitive: false },
-  people: { apiBlockedUntilPhase2C: true, storageKey: 'bc-planner:people', d1Table: 'people', sensitive: true },
+  people: { apiBackedPhase2C: true, storageKey: 'bc-planner:people', d1Table: 'people', sensitive: true },
   absences: { apiBlockedUntilPhase2C: true, storageKey: 'bc-planner:absences', d1Table: 'volunteer_absences', sensitive: true },
   visitors: { apiBlockedUntilPhase2C: true, storageKey: 'bc-planner:visitors', d1Table: 'visitors', sensitive: true },
   prayers: { apiBlockedUntilPhase2C: true, storageKey: 'bc-planner:prayers', d1Table: 'prayer_requests', sensitive: true },
