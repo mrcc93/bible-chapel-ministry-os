@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { COLLECTIONS, assertCollectionName } from './collections.js';
 
-const API_COLLECTIONS = new Set(['rhythm', 'tasks', 'events', 'annualPlan', 'roadmap', 'goals', 'series', 'services', 'bulletin', 'people']);
+const API_COLLECTIONS = new Set(['rhythm', 'tasks', 'events', 'annualPlan', 'roadmap', 'goals', 'series', 'services', 'bulletin', 'people', 'visitors', 'prayers', 'absences', 'contacts']);
 const LOCAL_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
 const canUseApi = () => typeof window !== 'undefined' && window.location.protocol !== 'file:';
 const isLocalDev = () => typeof window !== 'undefined' && LOCAL_DEV_HOSTS.has(window.location.hostname);

@@ -407,3 +407,37 @@ Still localStorage-only and intentionally blocked from API migration until later
 - Absences.
 - Pastoral contacts.
 - Stats, attendance, and giving.
+
+## Phase 2C-C care and follow-up API migration
+
+Phase 2C-C migrates the core care/follow-up workflows to authenticated Cloudflare Pages Functions backed by typed/queryable D1 tables. These records are no longer production localStorage data, and the app surfaces API errors instead of silently hiding them behind browser storage outside local development.
+
+D1/API-backed care collections in this phase:
+
+- Visitors (`visitors`) in the `visitors` table, with optional `person_id` / converted Person links.
+- Prayer requests (`prayers`) in the `prayer_requests` table, with optional `person_id` links.
+- Absences (`absences`) in the `volunteer_absences` table, linked to `person_id` when possible.
+- Pastoral contacts / contact logs (`contacts`) in the `pastoral_contacts` table, linked to `person_id` or `visitor_id` when possible.
+
+Access is enforced server-side for all migrated care collections:
+
+- **Admin** and **Pastor/Leader** can read, create, update, and delete care/follow-up data.
+- **Volunteer/View Only** is blocked from sensitive care/follow-up API data unless a later phase adds a safe limited view.
+- All `/api/*` routes continue to require Cloudflare Access authentication through the existing middleware.
+
+The Care UI now includes local import actions for authorized users to move existing browser data into D1 where practical:
+
+- Visitors import
+- Prayer import
+- Absences import
+- Contacts import
+
+Imports avoid obvious duplicates using names, dates, contact details, request text, notes, and person/visitor links where available. The workflows also support explicit linking/conversion actions so visitors are not automatically promoted into People without user intent.
+
+Still localStorage-only and intentionally blocked from API migration until a later phase:
+
+- Stats (`stats`)
+- Attendance
+- Giving
+
+The Data Status card and Settings page identify Planning data, Ministry Users, People Directory, Visitors, Prayer Requests, Absences, and Pastoral Contacts as D1/API-backed. Stats, Attendance, and Giving remain local-only.

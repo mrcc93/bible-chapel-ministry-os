@@ -1,4 +1,4 @@
-import { BLOCKED_COLLECTIONS, PEOPLE_COLLECTIONS, PLANNING_COLLECTIONS, json } from '../_shared/planning-api.js';
+import { BLOCKED_COLLECTIONS, CARE_COLLECTIONS, PEOPLE_COLLECTIONS, PLANNING_COLLECTIONS, json } from '../_shared/planning-api.js';
 
 const REQUIRED_PLANNING_TABLES = Object.freeze([
   'weekly_rhythm_days',
@@ -15,7 +15,11 @@ const REQUIRED_PLANNING_TABLES = Object.freeze([
   'service_slides',
   'bulletin_announcements',
   'ministry_users',
-  'people'
+  'people',
+  'visitors',
+  'prayer_requests',
+  'volunteer_absences',
+  'pastoral_contacts'
 ]);
 
 async function checkD1Schema(db) {
@@ -77,6 +81,13 @@ export async function onRequestGet(context) {
       enabled: true,
       roleSource: authUser?.roleSource || null,
       managedInApp: true
+    },
+    careFollowUp: {
+      enabled: true,
+      collections: Object.keys(CARE_COLLECTIONS),
+      typedTablesOnly: true,
+      jsonBlobStorage: false,
+      minimumRole: 'pastor_leader'
     },
     peopleDirectory: {
       enabled: true,
